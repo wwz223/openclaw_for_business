@@ -17,9 +17,6 @@ cd openclaw && pnpm install && cd ..
 
 # 3. 编辑配置（填入 API Key、飞书 App 信息等）
 vim ~/.openclaw/openclaw.json
-
-# 4. 启动 Bridge（飞书 Bot 连接）
-cd bridge && node bridge.mjs
 ```
 
 首次运行 `dev.sh` 时会自动：
@@ -39,18 +36,33 @@ cd bridge && node bridge.mjs
 
 ## 使用
 
-### 通过飞书对话（模式 A）
+### 通过飞书对话
 
-1. 发送任意消息给飞书 Bot → Main Agent 回复
-2. 说"我需要一个开发助手" → Main Agent 自动 spawn HRBP → HRBP 设计方案
-3. HRBP 创建新 Agent 后 → 说"帮我写代码" → Main Agent spawn Developer Agent
+每个 Agent 绑定一个独立的飞书 Bot（上游 feishu extension 多账户机制）：
 
-### 直接 @指定 Agent
+1. 在飞书开放平台为每个 Agent 创建一个机器人应用
+2. 在 `~/.openclaw/openclaw.json` 的 `channels.feishu.accounts` 中填入每个应用的 `appId` 和 `appSecret`
+3. 在 `bindings[]` 中配置飞书账户到 Agent 的映射关系
+4. 启动 Gateway 后，各 Bot 自动通过 WebSocket 长连接接收消息
 
+```json
+{
+  "channels": {
+    "feishu": {
+      "accounts": {
+        "main-bot": { "appId": "cli_xxx", "appSecret": "..." },
+        "hrbp-bot": { "appId": "cli_yyy", "appSecret": "..." }
+      }
+    }
+  },
+  "bindings": [
+    { "agentId": "main", "match": { "channel": "feishu", "accountId": "main-bot" } },
+    { "agentId": "hrbp", "match": { "channel": "feishu", "accountId": "hrbp-bot" } }
+  ]
+}
 ```
-@hrbp 我要招一个运营
-@developer 帮我修复登录 bug
-```
+
+发消息给 main-bot，由 Main Agent 回复；发消息给 hrbp-bot，由 HRBP Agent 回复。各 Agent 并行运行、互不干扰。
 
 ## Agent 管理脚本
 

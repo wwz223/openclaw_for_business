@@ -23,19 +23,10 @@
 
 - **配置模板** — 预设国内可用的模型、渠道、技能等配置
 - **工具脚本** — 一键启动、一键部署、一键更新
-- - **默认更稳定的飞书交互** - 整合比官方飞书插件更稳定、能力更强大的飞书桥接方案（参考[feishu-openclaw](https://github.com/AlexAnys/feishu-openclaw))。未来还会按社区反馈逐步增加其他国内流行的协作平台（钉钉、企微……）
+- **多 crew 机制** — 参考 [opencrew](https://github.com/AlexAnys/opencrew) 引入多 crew 机制，你拥有的不再是一个“私人助理”，而是一个”团队“。但我们并未向 opencrew 一样，内置了多个 crew，因为每个人根据自己的需求不同，对团队的配置也是不同的。我们只默认配置了一个 Crew —— HRBP，通过它你可以自定义你需要的其他 crew（比如财务、自媒体运营、情报官等……），HRBP 还会帮你进行 Crew 的管理（统计消耗、更新乃至“解雇”）
+- **Addon 机制** — 通过标准化的 addon 加载器，按需安装第三方能力增强包，可以通过 marketplace 安装社区开源的 Skill、Crew 等
 
-### 特色
-
-#### 👥 多 crew 机制
-
-参考 [opencrew](https://github.com/AlexAnys/opencrew) 引入多 crew 机制，你拥有的不再是一个“私人助理”，而是一个”团队“。但我们并未向 opencrew 一样，内置了多个 crew，因为每个人根据自己的需求不同，对团队的配置也是不同的。我们只默认配置了一个 Crew —— HRBP，通过它你可以自定义你需要的其他 crew（比如财务、自媒体运营、情报官等……），HRBP 还会帮你进行 Crew 的管理（统计消耗、更新乃至“解雇”）
-
-#### 	🌇 Addon 机制
-
-通过标准化的 addon 加载器，按需安装第三方能力增强包，可以通过 marketplace 安装社区开源的 Skill、Crew 等
-
-### Addon 生态（marketplace）
+### 🌇 Addon 生态（marketplace）
 
 能力增强通过独立的 addon 仓库提供，各团队可独立维护：
 
@@ -45,6 +36,8 @@
 
 > 欢迎贡献更多 addon！参见下方 [Addon 开发](#addon-开发) 章节。
 
+我们已经规划了 Add-on Marketplace, 预计将于 2026.4 月上线，不同于 openclaw 官方 craw hub，这是一个专门提供搞钱技能和能帮你搞钱的 crew 的市场，敬请期待！
+
 ## 项目结构
 
 ```
@@ -53,13 +46,12 @@ openclaw_for_business/
 ├── crew/                  # 多 Agent 系统（内置核心）
 │   ├── shared/            # 共享协议（RULES.md、TEMPLATES.md）
 │   ├── workspaces/        # Agent workspace 模板（main + hrbp）
-│   │   └── hrbp/skills/   # HRBP 专属技能（recruit/modify/remove）
+│   │   └── hrbp/skills/   # HRBP 专属技能（recruit/modify/remove/usage）
 │   └── role-templates/    # 角色参考模板（供 HRBP 招聘时使用）
 ├── skills/                # 全局共享技能（所有 Agent 可见）
 ├── addons/                # 第三方 addon 安装目录（不跟踪子目录）
 ├── config-templates/      # 配置模板（开箱即用的最佳实践）
 │   └── openclaw.json      # 默认配置模板
-├── bridge/                # 飞书 Bridge（飞书 Bot ↔ Gateway 连接器）
 ├── scripts/               # 工具脚本
 │   ├── dev.sh             # 开发模式启动（自动安装 Agent 系统 + addon）
 │   ├── setup-crew.sh      # 多 Agent 系统安装（幂等）
@@ -93,8 +85,8 @@ git clone https://github.com/openclaw/openclaw.git
 
 ```bash
 # 例：安装 wiseflow addon（浏览器反检测 + 互联网能力增强）
-从 https://github.com/TeamWiseFlow/wiseflow/releases 下载最新的发布
-解压缩后放入 addons/
+git clone https://github.com/TeamWiseFlow/wiseflow/
+拷贝 wiseflow 代码仓下的 wiseflow/ 文件夹 放入 addons/
 ```
 
 ### 3. 安装依赖

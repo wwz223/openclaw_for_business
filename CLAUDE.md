@@ -20,7 +20,6 @@ openclaw_for_business/
 ├── addons/                # 第三方 addon 安装目录（.gitignore 不跟踪子目录）
 ├── config-templates/      # 配置模板（版本控制）
 │   └── openclaw.json      # 默认配置模板
-├── bridge/                # 飞书 Bridge（飞书 Bot <-> Gateway 连接器）
 ├── scripts/               # 工具脚本
 │   ├── dev.sh             # 开发模式启动（自动安装 Agent 系统）
 │   ├── setup-crew.sh      # 多 Agent 系统安装（幂等）
@@ -65,9 +64,10 @@ openclaw_for_business/
   - 全局共享：`skills/`（项目根目录）→ 安装到 `openclaw/skills/`，所有 Agent 可见
   - Agent 专属：`crew/workspaces/<agent>/skills/` → 安装到 `~/.openclaw/workspace-<agent>/skills/`，仅该 Agent 可见
 
-混合路由架构：
-- **模式 A（统一入口）**：飞书 Bot -> Bridge -> Gateway -> Main Agent -> spawn 子 Agent
-- **模式 B（渠道直连）**：OpenClaw bindings 将渠道消息直接路由到指定 Agent
+飞书渠道直连架构：
+- 每个 Agent 绑定一个独立的飞书 Bot（通过 `channels.feishu.accounts` 多账户配置）
+- 通过 `bindings[]` 将飞书账户（accountId）路由到指定 Agent
+- 上游 feishu extension 原生支持多账户并行 WebSocket 监听、流式卡片回复、文档/云盘/知识库操作
 
 关键概念：
 - `agents.list[]` — Agent 注册表（id、name、workspace、subagents）

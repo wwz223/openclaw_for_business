@@ -85,7 +85,13 @@ if [ -f "$CONFIG_PATH" ]; then
           workspace: '~/.openclaw/workspace-hrbp'
         }
       ];
-      if (!c.bindings) c.bindings = [];
+      // 配置飞书多账户 -> Agent 绑定（模式 B：渠道直连）
+      if (!c.bindings || c.bindings.length === 0) {
+        c.bindings = [
+          { agentId: 'main', comment: 'main-bot -> Main Agent', match: { channel: 'feishu', accountId: 'main-bot' } },
+          { agentId: 'hrbp', comment: 'hrbp-bot -> HRBP Agent', match: { channel: 'feishu', accountId: 'hrbp-bot' } }
+        ];
+      }
       fs.writeFileSync('$CONFIG_PATH', JSON.stringify(c, null, 2) + '\n');
     "
     echo "  ✅ openclaw.json updated"
