@@ -153,7 +153,9 @@ cd openclaw && pnpm build && cd ..
 1. 默认在 `main` 分支上开发，按需创建功能分支
 2. 开发完成后推送到 **origin**（个人仓库）
 3. 阶段性成果通过 GitHub PR 从 origin 合并到 **upstream**（TeamWiseflow 正式仓库）
-4. **upstream**（TeamWiseflow 正式仓库）每次合并 PR 后通过 github actions 自动更新版本号并触发 release 打包发布
+4. **upstream**（TeamWiseflow 正式仓库）每次合并 PR 后自动更新版本号并触发 release 打包发布
+
+注：有时我会通过在 .claude/ 中留下 TODO.md 的方式下发开发任务，这些任务你完成后需要把 TODO.md 改名为 {date}_done.md
 
 ## Permissions
 

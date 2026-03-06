@@ -53,8 +53,8 @@ openclaw_for_business/
 ├── config-templates/      # 配置模板（开箱即用的最佳实践）
 │   └── openclaw.json      # 默认配置模板
 ├── scripts/               # 工具脚本
-│   ├── dev.sh             # 开发模式启动（自动安装 Agent 系统 + addon）
-│   ├── setup-crew.sh      # 多 Agent 系统安装（幂等）
+│   ├── dev.sh             # 开发模式启动（自动安装 crew 系统 + addon）
+│   ├── setup-crew.sh      # 多 crew 系统安装（幂等）
 │   ├── apply-addons.sh    # 全局 skills + addon 加载器
 │   ├── update-upstream.sh # 更新上游代码
 │   ├── reinstall-daemon.sh # 生产模式安装后台服务
@@ -74,6 +74,8 @@ git clone https://github.com/TeamWiseFlow/openclaw_for_business.git
 cd openclaw_for_business
 git clone https://github.com/openclaw/openclaw.git
 ```
+
+或者直接在 release 页面下载打包（已经整合了上游 openclaw）
 
 ### 2. 安装 addon（可选）
 
@@ -104,7 +106,7 @@ cd ..
 
 首次启动时，`dev.sh` 会：
 1. 自动从 `config-templates/` 创建默认配置到 `~/.openclaw/openclaw.json`
-2. 自动安装多 Agent 系统（Main Agent + HRBP Agent）
+2. 自动安装多 crew 系统（Main Agent + HRBP Agent）
 3. 自动安装 crew 内置技能 + 扫描并应用所有 addon
 
 ### WSL2 用户
@@ -115,6 +117,8 @@ cd ..
 
 # 启动后在 Windows 浏览器中访问显示的 URL（通常是 http://172.x.x.x:18789）
 ```
+
+**注：dev.sh 和 reinstall-daemon.sh 已经集成该脚本，无需单独使用**
 
 ### 生产部署
 
@@ -139,7 +143,7 @@ cd openclaw && pnpm build && cd ..
 ./scripts/setup-crew.sh --builtin-skills hrbp:browser-guide
 ```
 
-Agent 生命周期（新增/调岗/移除）由 HRBP skill 执行，内部脚本位于 `crew/workspaces/hrbp/skills/*/scripts/`，不作为人类用户主入口。
+Agent 生命周期（新增/调岗/移除/消耗统计）由 HRBP skill 执行，内部脚本位于 `crew/workspaces/hrbp/skills/*/scripts/`，不作为人类用户主入口。
 
 ## Addon 开发
 
@@ -164,7 +168,7 @@ addons/<name>/
 
 ## 文档
 
-- [多 Agent 系统架构](docs/hrbp-system.md) - 架构设计和组件说明
+- [多 crew 系统架构](docs/crew-system.md) - 架构设计和组件说明
 - [快速上手](docs/quick-start.md) - 安装和使用指南
 - [OpenClaw 分析](docs/introduce_to_clawd_by_claude.md) - 上游代码架构分析
 
