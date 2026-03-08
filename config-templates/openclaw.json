@@ -15,17 +15,10 @@
         "apiKey": "",
         "models": [
           {
-            "id": "moonshotai/Kimi-K2-Thinking",
-            "name": "Kimi K2 Thinking",
+            "id": "Pro/moonshotai/Kimi-K2.5",
+            "name": "Kimi K2.5",
             "input": ["text"],
             "contextWindow": 256000,
-            "maxTokens": 8192
-          },
-          {
-            "id": "zai-org/GLM-4.6V",
-            "name": "GLM-4.6V",
-            "input": ["text", "image"],
-            "contextWindow": 128000,
             "maxTokens": 8192
           }
         ]
@@ -35,10 +28,7 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "siliconflow/moonshotai/Kimi-K2-Thinking"
-      },
-      "imageModel": {
-        "primary": "siliconflow/zai-org/GLM-4.6V"
+        "primary": "siliconflow/Pro/moonshotai/Kimi-K2.5"
       },
       "compaction": {
         "mode": "safeguard"
