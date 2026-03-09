@@ -36,7 +36,7 @@
 
 > 欢迎贡献更多 addon！参见下方 [Addon 开发](#addon-开发) 章节。
 
-我们已经规划了 Add-on Marketplace, 预计将于 2026.4 月上线，不同于 openclaw 官方 craw hub，这是一个专门提供搞钱技能和能帮你搞钱的 crew 的市场，敬请期待！
+我们已经规划了 Add-on Marketplace, 预计将于 2026.4 月上线，不同于 openclaw clawhub，这是一个专门提供搞钱技能和能帮你搞钱的 crew 的市场，敬请期待！
 
 ## 项目结构
 
