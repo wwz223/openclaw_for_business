@@ -10,15 +10,15 @@ usage() {
   echo "Usage: $0 <agent-id>"
   echo ""
   echo "Removes an agent from openclaw.json and archives its workspace."
-  echo "Protected agents (main, hrbp) cannot be removed."
+  echo "Protected agents (main, hrbp, it-engineer) cannot be removed."
   exit 1
 }
 
 [ -z "$1" ] && usage
 AGENT_ID="$1"
 
-# 安全检查：保护 main 和 hrbp
-if [ "$AGENT_ID" = "main" ] || [ "$AGENT_ID" = "hrbp" ]; then
+# 安全检查：保护 main、hrbp 和 it-engineer
+if [ "$AGENT_ID" = "main" ] || [ "$AGENT_ID" = "hrbp" ] || [ "$AGENT_ID" = "it-engineer" ]; then
   echo "❌ Agent '$AGENT_ID' is protected and cannot be removed."
   exit 1
 fi

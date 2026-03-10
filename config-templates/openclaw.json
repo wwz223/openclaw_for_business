@@ -53,13 +53,18 @@
         "name": "Main Agent",
         "workspace": "~/.openclaw/workspace-main",
         "subagents": {
-          "allowAgents": ["main", "hrbp"]
+          "allowAgents": ["main", "hrbp", "it-engineer"]
         }
       },
       {
         "id": "hrbp",
         "name": "HRBP",
         "workspace": "~/.openclaw/workspace-hrbp"
+      },
+      {
+        "id": "it-engineer",
+        "name": "IT Engineer",
+        "workspace": "~/.openclaw/workspace-it-engineer"
       }
     ]
   },
@@ -73,6 +78,11 @@
       "agentId": "hrbp",
       "comment": "hrbp-bot -> HRBP Agent",
       "match": { "channel": "feishu", "accountId": "hrbp-bot" }
+    },
+    {
+      "agentId": "it-engineer",
+      "comment": "it-engineer-bot -> IT Engineer Agent",
+      "match": { "channel": "feishu", "accountId": "it-engineer-bot" }
     }
   ],
   "messages": {
@@ -117,9 +127,9 @@
       "obsidian": { "enabled": false },
       "things-mac": { "enabled": false },
       "trello": { "enabled": false },
-      "github": { "enabled": false },
-      "gh-issues": { "enabled": false },
-      "coding-agent": { "enabled": false },
+      "github": { "enabled": true },
+      "gh-issues": { "enabled": true },
+      "coding-agent": { "enabled": true },
       "slack": { "enabled": false },
       "imsg": { "enabled": false },
       "wacli": { "enabled": false },
@@ -171,6 +181,11 @@
         },
         "hrbp-bot": {
           "name": "HRBP Bot",
+          "appId": "",
+          "appSecret": ""
+        },
+        "it-engineer-bot": {
+          "name": "IT Engineer Bot",
           "appId": "",
           "appSecret": ""
         }

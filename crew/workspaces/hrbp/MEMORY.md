@@ -14,6 +14,7 @@ Templates located at: `~/.openclaw/hrbp-templates/`
 These agents cannot be deleted:
 - `main` — Team dispatcher
 - `hrbp` — This agent (self)
+- `it-engineer` — System IT engineer (built-in, protected)
 
 ## Recruitment History
 (Updated after each recruit/modify/dismiss operation)

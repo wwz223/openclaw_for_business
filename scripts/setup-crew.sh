@@ -183,6 +183,7 @@ if [ -f "$CONFIG_PATH" ]; then
 
   MAIN_OVERRIDE="$(resolve_denied_override_for_agent "main")"
   HRBP_OVERRIDE="$(resolve_denied_override_for_agent "hrbp")"
+  IT_OVERRIDE="$(resolve_denied_override_for_agent "it-engineer")"
 
   MAIN_SKILLS_RESULT="$(resolve_agent_skills_json \
     "main" \
@@ -196,8 +197,14 @@ if [ -f "$CONFIG_PATH" ]; then
     "$HRBP_OVERRIDE" \
     "$OPENCLAW_HOME/workspace-hrbp/DENIED_SKILLS" \
     "$PROJECT_ROOT")"
+  IT_SKILLS_RESULT="$(resolve_agent_skills_json \
+    "it-engineer" \
+    "$OPENCLAW_HOME/workspace-it-engineer" \
+    "$IT_OVERRIDE" \
+    "$OPENCLAW_HOME/workspace-it-engineer/DENIED_SKILLS" \
+    "$PROJECT_ROOT")"
 
-  MAIN_SKILLS_RESULT="$MAIN_SKILLS_RESULT" HRBP_SKILLS_RESULT="$HRBP_SKILLS_RESULT" node -e "
+  MAIN_SKILLS_RESULT="$MAIN_SKILLS_RESULT" HRBP_SKILLS_RESULT="$HRBP_SKILLS_RESULT" IT_SKILLS_RESULT="$IT_SKILLS_RESULT" node -e "
     const fs = require('fs');
     const c = JSON.parse(fs.readFileSync('$CONFIG_PATH', 'utf8'));
 
@@ -224,7 +231,7 @@ if [ -f "$CONFIG_PATH" ]; then
 
     upsertAgent('main', (prev) => {
       const allowAgents = Array.isArray(prev?.subagents?.allowAgents) ? prev.subagents.allowAgents : [];
-      const mergedAllowAgents = Array.from(new Set([...allowAgents, 'main', 'hrbp']));
+      const mergedAllowAgents = Array.from(new Set([...allowAgents, 'main', 'hrbp', 'it-engineer']));
       const base = {
         ...prev,
         id: 'main',
@@ -249,11 +256,22 @@ if [ -f "$CONFIG_PATH" ]; then
       return applySkills(base, process.env.HRBP_SKILLS_RESULT);
     });
 
+    upsertAgent('it-engineer', (prev) => {
+      const base = {
+        ...prev,
+        id: 'it-engineer',
+        name: prev.name || 'IT Engineer',
+        workspace: prev.workspace || '~/.openclaw/workspace-it-engineer',
+      };
+      return applySkills(base, process.env.IT_SKILLS_RESULT);
+    });
+
     // 配置飞书多账户 -> Agent 绑定（模式 B：渠道直连）
     if (!Array.isArray(c.bindings) || c.bindings.length === 0) {
       c.bindings = [
         { agentId: 'main', comment: 'main-bot -> Main Agent', match: { channel: 'feishu', accountId: 'main-bot' } },
-        { agentId: 'hrbp', comment: 'hrbp-bot -> HRBP Agent', match: { channel: 'feishu', accountId: 'hrbp-bot' } }
+        { agentId: 'hrbp', comment: 'hrbp-bot -> HRBP Agent', match: { channel: 'feishu', accountId: 'hrbp-bot' } },
+        { agentId: 'it-engineer', comment: 'it-engineer-bot -> IT Engineer Agent', match: { channel: 'feishu', accountId: 'it-engineer-bot' } }
       ];
     }
 
@@ -280,6 +298,6 @@ echo ""
 echo "✅ Agent System installed!"
 echo ""
 echo "Installed locations:"
-echo "  Workspaces:  $OPENCLAW_HOME/workspace-main/, workspace-hrbp/"
+echo "  Workspaces:  $OPENCLAW_HOME/workspace-main/, workspace-hrbp/, workspace-it-engineer/"
 echo "  Templates:   $OPENCLAW_HOME/hrbp-templates/"
 echo "  Config:      $CONFIG_PATH"
