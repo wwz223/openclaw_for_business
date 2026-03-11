@@ -138,9 +138,32 @@ cd /path/to/openclaw
 # （具体安装方式参考 openclaw 插件文档）
 ```
 
+### 安装 awada-extension 依赖（必做一次）
+
+`awada-extension` 使用独立 `package.json` 管理依赖。首次在某个代码路径启用时，先安装依赖：
+
+```bash
+cd /path/to/openclaw_for_business/awada/awada-extension
+pnpm install --prod
+```
+
+如果你使用本仓默认目录，可直接执行：
+
+```bash
+cd ~/openclaw_for_business/awada/awada-extension
+pnpm install --prod
+```
+
+说明：
+- 不需要每次启动都执行，只在以下情况需要重新执行：
+- 首次在该目录启用 awada-extension
+- `awada-extension/node_modules` 被清理（例如 `git clean -fdx` 或手动删除）
+- `awada-extension/package.json` 依赖发生变更
+- 典型报错信号：`Cannot find module 'ioredis'`
+
 ### 配置
 
-在 openclaw 的配置文件（`~/.openclaw/config.json` 或对应路径）中，添加 `channels.awada` 节点：
+在 openclaw 的配置文件（`~/.openclaw/openclaw.json` 或对应路径）中，添加 `channels.awada` 节点：
 
 ```json
 {
@@ -179,6 +202,9 @@ redis://HOST:PORT/DB                     # 无密码
 redis://:PASSWORD@HOST:PORT/DB           # 有密码
 redis://USERNAME:PASSWORD@HOST:PORT/DB   # 有用户名和密码
 ```
+
+> 注意：如果密码包含 `@`、`#`、`!`、`%` 等特殊字符，必须先做 URL 编码再写入 `redisUrl`。  
+> 例如原密码为 `Aw4d@R3d1s#2025!Sec`，应写为 `Aw4d%40R3d1s%232025%21Sec`。
 
 **典型配置示例：**
 ```json

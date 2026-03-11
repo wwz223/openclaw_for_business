@@ -131,10 +131,21 @@ function dateKey(d, p) {
 
 // 空 bucket
 function emptyBucket() {
-  return { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0 };
+  return {
+    calls: 0,
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: 0,
+    zeroTokenCalls: 0,
+    missingUsageCalls: 0,
+    errorCalls: 0
+  };
 }
 
-function mergeBucket(dst, usage, cost) {
+function mergeBucket(dst, usage, cost, flags = {}) {
   dst.calls++;
   dst.input += usage.input;
   dst.output += usage.output;
@@ -142,6 +153,9 @@ function mergeBucket(dst, usage, cost) {
   dst.cacheWrite += usage.cacheWrite;
   dst.totalTokens += usage.total;
   dst.cost += cost;
+  if (flags.zeroToken) dst.zeroTokenCalls++;
+  if (flags.missingUsage) dst.missingUsageCalls++;
+  if (flags.errorCall) dst.errorCalls++;
 }
 
 async function scanAgentSessions(agentId) {
@@ -165,15 +179,24 @@ async function scanAgentSessions(agentId) {
         if (entry.message.role !== 'assistant') continue;
 
         const rawUsage = entry.usage || entry.message?.usage;
-        const usage = normalizeUsage(rawUsage);
-        if (!usage || usage.total === 0) continue;
+        const usage = normalizeUsage(rawUsage) || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
         const ts = extractTimestamp(entry);
         if (!ts) continue;
         if (cutoffMs > 0 && ts.getTime() < cutoffMs) continue;
 
         const cost = extractCost(entry);
-        entries.push({ ts, usage, cost, model: entry.model || entry.message?.model || 'unknown' });
+        const stopReason = entry.stopReason || entry.message?.stopReason;
+        const hasError = Boolean(entry.errorMessage || entry.message?.errorMessage || stopReason === 'error');
+        const zeroToken = usage.total === 0;
+        const missingUsage = !rawUsage;
+        entries.push({
+          ts,
+          usage,
+          cost,
+          model: entry.model || entry.message?.model || 'unknown',
+          flags: { zeroToken, missingUsage, errorCall: hasError }
+        });
       } catch (e) { /* skip malformed lines */ }
     }
   }
@@ -208,10 +231,10 @@ async function main() {
     for (const e of entries) {
       const key = dateKey(e.ts, period);
       if (!agentBuckets.has(key)) agentBuckets.set(key, emptyBucket());
-      mergeBucket(agentBuckets.get(key), e.usage, e.cost);
+      mergeBucket(agentBuckets.get(key), e.usage, e.cost, e.flags);
 
       if (!globalTotals.has(key)) globalTotals.set(key, emptyBucket());
-      mergeBucket(globalTotals.get(key), e.usage, e.cost);
+      mergeBucket(globalTotals.get(key), e.usage, e.cost, e.flags);
     }
     results.set(agentId, agentBuckets);
   }
@@ -259,8 +282,18 @@ async function main() {
     // Agent 小计
     if (sortedKeys.length > 1) {
       const total = emptyBucket();
-      for (const b of buckets.values()) mergeBucket(total, { input: b.input, output: b.output, cacheRead: b.cacheRead, cacheWrite: b.cacheWrite, total: b.totalTokens }, b.cost);
+      for (const b of buckets.values()) {
+        mergeBucket(
+          total,
+          { input: b.input, output: b.output, cacheRead: b.cacheRead, cacheWrite: b.cacheWrite, total: b.totalTokens },
+          b.cost,
+          { zeroToken: false, missingUsage: false, errorCall: false }
+        );
+      }
       total.calls = [...buckets.values()].reduce((s, b) => s + b.calls, 0);
+      total.zeroTokenCalls = [...buckets.values()].reduce((s, b) => s + b.zeroTokenCalls, 0);
+      total.missingUsageCalls = [...buckets.values()].reduce((s, b) => s + b.missingUsageCalls, 0);
+      total.errorCalls = [...buckets.values()].reduce((s, b) => s + b.errorCalls, 0);
       const costStr = total.cost > 0 ? '$' + total.cost.toFixed(4) : '—';
       console.log('  ' + '─'.repeat(80));
       console.log('  ' +
@@ -272,6 +305,20 @@ async function main() {
         total.totalTokens.toLocaleString().padStart(12) +
         costStr.padStart(10)
       );
+      if (total.calls > 0 && total.totalTokens === 0) {
+        console.log('  ℹ️  Active sessions detected, but provider returned zero usage metrics.');
+      }
+      if (total.errorCalls > 0) {
+        console.log('  ⚠️  Error responses: ' + total.errorCalls);
+      }
+    } else {
+      const only = buckets.get(sortedKeys[0]);
+      if (only && only.calls > 0 && only.totalTokens === 0) {
+        console.log('  ℹ️  Active sessions detected, but provider returned zero usage metrics.');
+      }
+      if (only && only.errorCalls > 0) {
+        console.log('  ⚠️  Error responses: ' + only.errorCalls);
+      }
     }
   }
 
@@ -294,6 +341,9 @@ async function main() {
     console.log('  Calls: ' + grandTotal.calls);
     console.log('  Tokens: ' + grandTotal.totalTokens.toLocaleString() + ' (in: ' + grandTotal.input.toLocaleString() + ', out: ' + grandTotal.output.toLocaleString() + ', cache: ' + grandTotal.cacheRead.toLocaleString() + ')');
     console.log('  Cost: ' + costStr);
+    if (grandTotal.calls > 0 && grandTotal.totalTokens === 0) {
+      console.log('  Note: sessions are active, but provider returned zero usage metrics.');
+    }
   }
 
   console.log('');

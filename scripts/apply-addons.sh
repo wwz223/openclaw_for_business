@@ -2,7 +2,7 @@
 # apply-addons.sh - 全局 skills 安装 + 通用 addon 加载器
 #
 # 技能两级体系：
-#   - 全局 skills: skills/ (项目根目录) → 安装到 openclaw/skills/（默认只有 main agent 会启用，其他 crew 需要额外配置）
+#   - 全局 skills: skills/ (项目根目录) → 安装到 openclaw/skills/（由各 Agent 的 skills allowlist 决定可见范围）
 #   - Agent 专属 skills: crews/<template>/skills/ → 已由 setup-crew.sh 安装到 workspace
 #
 # 每次运行时：
@@ -34,6 +34,15 @@ OPENCLAW_DIR="$PROJECT_ROOT/openclaw"
 OPENCLAW_HOME="$HOME/.openclaw"
 CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
 HRBP_ADD_AGENT_SCRIPT="$PROJECT_ROOT/crews/hrbp/skills/hrbp-recruit/scripts/add-agent.sh"
+GLOBAL_SHARED_SKILLS_FILE="$OPENCLAW_HOME/GLOBAL_SHARED_SKILLS"
+
+GLOBAL_SHARED_SKILLS_RAW=""
+append_global_shared_skill() {
+  local skill_name="$1"
+  [ -n "$skill_name" ] || return 0
+  GLOBAL_SHARED_SKILLS_RAW="${GLOBAL_SHARED_SKILLS_RAW}
+$skill_name"
+}
 
 # ─── 恢复上游到干净状态 ──────────────────────────────────────────
 cd "$OPENCLAW_DIR"
@@ -46,18 +55,62 @@ if [ -f "$CONFIG_PATH" ] && [ -f "$PROJECT_ROOT/config-templates/openclaw.json" 
     const fs = require('fs');
     const running = JSON.parse(fs.readFileSync('$CONFIG_PATH', 'utf8'));
     const template = JSON.parse(fs.readFileSync('$PROJECT_ROOT/config-templates/openclaw.json', 'utf8'));
+    const clone = (value) => {
+      if (value && typeof value === 'object') return JSON.parse(JSON.stringify(value));
+      return value;
+    };
+    let changed = false;
 
-    // 将模板中所有 skills.entries 设置同步到运��配置
+    // 将模板中所有 skills.entries 设置同步到运行配置
     // 确保用户即使更新也能保持精简的内置 skill 集
     if (template.skills?.entries) {
       if (!running.skills) running.skills = {};
       if (!running.skills.entries) running.skills.entries = {};
       for (const [name, entry] of Object.entries(template.skills.entries)) {
         running.skills.entries[name] = entry;
+        changed = true;
       }
     }
 
-    fs.writeFileSync('$CONFIG_PATH', JSON.stringify(running, null, 2) + '\n');
+    // 规范 Feishu 多账号配置：将顶层 single-account 字段下沉到 accounts.*
+    // 避免启动时触发 Doctor 迁移提示：
+    // \"Moved channels.feishu single-account top-level values into channels.feishu.accounts.default.\"
+    const feishu = running.channels?.feishu;
+    if (feishu && typeof feishu === 'object' && !Array.isArray(feishu)) {
+      const accounts = feishu.accounts;
+      if (accounts && typeof accounts === 'object' && !Array.isArray(accounts)) {
+        const accountEntries = Object.entries(accounts);
+        if (accountEntries.length > 0) {
+          const keysToMove = ['dmPolicy', 'allowFrom', 'groupPolicy', 'groupAllowFrom', 'defaultTo'];
+          const topLevelValues = {};
+          for (const key of keysToMove) {
+            if (feishu[key] !== undefined) topLevelValues[key] = feishu[key];
+          }
+          if (Object.keys(topLevelValues).length > 0) {
+            const nextAccounts = {};
+            for (const [accountId, rawAccount] of accountEntries) {
+              const account =
+                rawAccount && typeof rawAccount === 'object' && !Array.isArray(rawAccount)
+                  ? { ...rawAccount }
+                  : {};
+              for (const [key, value] of Object.entries(topLevelValues)) {
+                if (account[key] === undefined) account[key] = clone(value);
+              }
+              nextAccounts[accountId] = account;
+            }
+            for (const key of Object.keys(topLevelValues)) {
+              delete feishu[key];
+            }
+            feishu.accounts = nextAccounts;
+            changed = true;
+          }
+        }
+      }
+    }
+
+    if (changed) {
+      fs.writeFileSync('$CONFIG_PATH', JSON.stringify(running, null, 2) + '\n');
+    }
   "
   echo "📝 Skills configuration synchronized"
 fi
@@ -94,6 +147,7 @@ if [ -d "$PROJECT_ROOT/skills" ]; then
       skill_name="$(basename "$skill_dir")"
       cp -r "$skill_dir" "$OPENCLAW_DIR/skills/$skill_name"
       GLOBAL_SKILL_COUNT=$((GLOBAL_SKILL_COUNT + 1))
+      append_global_shared_skill "$skill_name"
     fi
   done
 fi
@@ -154,6 +208,7 @@ for addon_dir in "$ADDONS_DIR"/*/; do
         skill_name="$(basename "$skill_dir")"
         echo "    → $skill_name (global)"
         cp -r "$skill_dir" "$OPENCLAW_DIR/skills/$skill_name"
+        append_global_shared_skill "$skill_name"
       fi
     done
   fi
@@ -246,4 +301,17 @@ if [ "$ADDON_COUNT" -gt 0 ]; then
   echo "✅ All addons applied ($ADDON_COUNT loaded)"
 else
   echo "📦 No addons found"
+fi
+
+# ─── 写入全局共享 skills 清单（供 skills allowlist 计算使用） ──────
+mkdir -p "$OPENCLAW_HOME"
+printf '%s\n' "$GLOBAL_SHARED_SKILLS_RAW" \
+  | awk 'NF && !seen[$0]++' \
+  | sort > "$GLOBAL_SHARED_SKILLS_FILE"
+GLOBAL_SHARED_COUNT="$(wc -l < "$GLOBAL_SHARED_SKILLS_FILE" | tr -d ' ')"
+echo "🧾 Global shared skills catalog updated ($GLOBAL_SHARED_COUNT)"
+
+# ─── 重新同步 agents.list[].skills（纳入最新全局 skills）──────────
+if [ -f "$CONFIG_PATH" ] && [ -x "$PROJECT_ROOT/scripts/setup-crew.sh" ]; then
+  "$PROJECT_ROOT/scripts/setup-crew.sh"
 fi
