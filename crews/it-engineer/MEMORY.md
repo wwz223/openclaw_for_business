@@ -97,6 +97,17 @@ openclaw_for_business/
   - `redis://:PASSWORD@HOST:PORT/DB`
 
 ### AWADA 排障检查单
+0. 若日志出现 `Cannot find module 'ioredis'`（plugin=awada）：
+   - 进入 awada-extension 目录安装依赖：
+     ```bash
+     cd ~/openclaw_for_business/awada/awada-extension
+     pnpm install --prod
+     ```
+   - 该命令不是每次都要跑，仅在首次启用、`node_modules` 被清理、或 `package.json` 变更后执行
+0.1 若日志出现 ioredis 连接重试异常（如 `MaxRetriesPerRequestError`）：
+   - 先检查 `channels.awada.redisUrl` 是否是合法 URL
+   - 密码中如含 `@`、`#`、`!`、`%`，必须 URL 编码（如 `#` -> `%23`）
+   - 常见误配症状：URL 被解析后 host 异常（例如变成 `R3d1s`），导致探测连接持续失败
 1. awada-server 进程是否存活（pm2 / systemd）
 2. Redis 连通性是否正常（公网访问、密码、db）
 3. webhook 回调地址是否与平台后台配置一致
