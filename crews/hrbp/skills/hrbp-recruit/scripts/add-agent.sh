@@ -8,6 +8,8 @@ CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SYNC_TEAM_DIRECTORY_SCRIPT="$SCRIPT_DIR/../../hrbp-common/scripts/sync-team-directory.sh"
 
+source "$SCRIPT_DIR/../../hrbp-common/scripts/lib.sh"
+
 usage() {
   echo "Usage: $0 <agent-id> [--bind <channel>:<accountId>] [--builtin-skills <skill1,skill2|all>]"
   echo ""
@@ -20,15 +22,6 @@ usage() {
   echo "  $0 developer --builtin-skills browser-guide,summarize"
   echo "  $0 customer-service --bind wechat:wx_xxx"
   exit 1
-}
-
-validate_agent_id() {
-  local id="$1"
-  if ! printf '%s\n' "$id" | grep -Eq '^[a-z0-9][a-z0-9-]*$'; then
-    echo "❌ Invalid agent-id: $id"
-    echo "   Expected: lowercase letters, numbers, hyphens (e.g. customer-service-a)"
-    exit 1
-  fi
 }
 
 split_skill_tokens() {

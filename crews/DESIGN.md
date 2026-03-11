@@ -123,7 +123,7 @@ crews/
 ```
 ~/.openclaw/
 ├── openclaw.json               # 运行配置（agents.list[] 注册实例）
-├── TEAM_DIRECTORY.md           # 启用实例通讯录（自动生成）
+├── TEAM_DIRECTORY.md           # 启用实例通讯录（自动生成，单一信源，所有 agent 直接读取）
 ├── workspace/                  # OpenClaw 默认 workspace
 ├── workspace-main/             # Main Agent 实例 workspace
 ├── workspace-hrbp/             # HRBP 实例 workspace

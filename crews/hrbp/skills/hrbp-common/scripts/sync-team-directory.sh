@@ -1,5 +1,7 @@
 #!/bin/bash
 # sync-team-directory.sh - Generate team directory from openclaw.json
+# Writes a single canonical file at ~/.openclaw/TEAM_DIRECTORY.md.
+# All agents can read it directly (workspaceOnly is off by default).
 set -e
 
 OPENCLAW_HOME="${OPENCLAW_HOME:-$HOME/.openclaw}"
@@ -14,12 +16,20 @@ fi
 CONFIG_PATH="$CONFIG_PATH" TEAM_DIRECTORY_PATH="$TEAM_DIRECTORY_PATH" node -e '
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 const configPath = process.env.CONFIG_PATH;
 const teamDirectoryPath = process.env.TEAM_DIRECTORY_PATH;
 const home = process.env.HOME || "";
 
-const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+let config;
+try {
+  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} catch (err) {
+  console.error("❌ Failed to parse " + configPath + ": " + err.message);
+  process.exit(1);
+}
+
 const agents = Array.isArray(config?.agents?.list) ? config.agents.list : [];
 const bindings = Array.isArray(config?.bindings) ? config.bindings : [];
 const main = agents.find((agent) => agent.id === "main");
@@ -90,14 +100,17 @@ for (const agent of agents) {
 }
 
 lines.push("");
-fs.writeFileSync(teamDirectoryPath, lines.join("\n"));
+const content = lines.join("\n");
 
-for (const agent of agents) {
-  const id = agent.id || "unknown";
-  const workspacePath = resolveWorkspace(agent.workspace, id);
-  if (!fs.existsSync(workspacePath)) continue;
-  const targetPath = path.join(workspacePath, "TEAM_DIRECTORY.md");
-  fs.writeFileSync(targetPath, lines.join("\n"));
+// Atomic write: write to temp file then rename
+const tmpPath = teamDirectoryPath + ".tmp." + process.pid;
+try {
+  fs.writeFileSync(tmpPath, content);
+  fs.renameSync(tmpPath, teamDirectoryPath);
+} catch (err) {
+  // Clean up temp file on failure
+  try { fs.unlinkSync(tmpPath); } catch (_) {}
+  throw err;
 }
 '
 
