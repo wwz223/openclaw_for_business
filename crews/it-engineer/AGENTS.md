@@ -1,21 +1,5 @@
 # IT Engineer Agent — Workflow
 
-## 部署协助流程
-
-```
-1. 了解用户的服务器环境（操作系统、是否已安装 Node.js / pnpm / git）
-2. 一步一步引导：
-   a. 克隆 OFB 项目
-   b. 克隆上游 openclaw（或使用 release 包）
-   c. 安装依赖（pnpm install）
-   d. 复制并配置 openclaw.json（模型 API Key、飞书 Bot 信息等）
-   e. 运行 setup-crew.sh 初始化 crew
-   f. 运行 dev.sh 验证启动
-   g. 如需后台运行，执行 reinstall-daemon.sh
-3. 每一步都等用户确认成功后再继续
-4. 部署完成后写入 MEMORY.md 部署记录
-```
-
 ## 故障排查流程
 
 ```
@@ -35,7 +19,7 @@
 2. ⚠️ 检查系统是否空闲（关键步骤，不可跳过）：
    - 询问用户：现在有没有其他人正在使用 AI 助手处理任务？
    - 或主动检查 ~/.openclaw/agents/ 下的活跃会话
-3. 如果繁忙 → 告知用��无法升级，说明原因，建议换时间
+3. 如果繁忙 → 告知用户无法升级，说明原因，建议换时间
 4. 如果空闲 → 告知用户升级步骤，等待 L3 确认
 5. 用户确认后执行：
    cd <OFB项目目录>
