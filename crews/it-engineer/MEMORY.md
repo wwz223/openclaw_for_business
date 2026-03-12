@@ -30,22 +30,33 @@ openclaw-for-business（OFB）是 [OpenClaw](https://github.com/openclaw/opencla
 
 ---
 
+## 安装路径（由 setup-crew.sh 自动维护）
+
+> 实际 OFB 项目路径记录在 `OFB_ENV.md`（同目录），每次运行 `setup-crew.sh` 自动更新。
+> 执行任何 OFB 脚本前，先读取该文件确认路径，再 `cd <OFB_PROJECT_ROOT>` 后调用 `./scripts/xxx.sh`。
+>
+> **禁止直接运行 `openclaw` 命令**，只能通过 OFB 脚本或在 `openclaw/` 子目录内用 `pnpm openclaw` 调用。
+
+---
+
 ## 项目目录结构
 
 ```
 openclaw_for_business/
 ├── openclaw/              # 上游仓库（git clone，禁止直接修改）
-├── crew/                  # 多 Agent 系统
+│   └── openclaw.mjs       # 上游二进制入口（通过 pnpm openclaw 调用）
+├── crews/                 # Crew 模板库 + 内置 Crew
 │   ├── shared/            # 共享协议（RULES.md、TEMPLATES.md）
-│   ├── workspaces/        # Agent workspace 模板
-│   └── role-templates/    # 角色参考模板
+│   ├── main/              # [built-in] Main Agent
+│   ├── hrbp/              # [built-in] HRBP
+│   └── it-engineer/       # [built-in] IT Engineer
 ├── skills/                # 全局共享技能
-├── addons/                # 第三方 addon
+├── addons/                # 第三方 addon（.gitignore 不跟踪子目录）
 ├── config-templates/      # 配置模板
 │   └── openclaw.json      # 默认配置模板
 ├── scripts/               # 工具脚本（核心操作入口）
 │   ├── dev.sh             # 开发模式启动
-│   ├── setup-crew.sh      # 多 crew 系统安装
+│   ├── setup-crew.sh      # 多 Crew 系统安装（幂等）
 │   ├── apply-addons.sh    # 全局 skills + addon 加载器
 │   ├── update-upstream.sh # 更新上游代码（升级入口）
 │   ├── reinstall-daemon.sh # 生产模式安装后台服务
@@ -100,7 +111,7 @@ openclaw_for_business/
 0. 若日志出现 `Cannot find module 'ioredis'`（plugin=awada）：
    - 进入 awada-extension 目录安装依赖：
      ```bash
-     cd ~/openclaw_for_business/awada/awada-extension
+     cd <OFB_PROJECT_ROOT>/awada/awada-extension
      pnpm install --prod
      ```
    - 该命令不是每次都要跑，仅在首次启用、`node_modules` 被清理、或 `package.json` 变更后执行
@@ -120,17 +131,18 @@ openclaw_for_business/
 
 ### 升级命令
 ```bash
-cd ~/path/to/openclaw_for_business
-./scripts/update-upstream.sh
+cd <OFB_PROJECT_ROOT>
+./scripts/upgrade.sh
 ```
 
-`update-upstream.sh` 会依次：
-1. 恢复上游代码到干净状态（`git reset --hard`）
-2. 拉取上游最新代码（`git pull origin main`）
-3. 安装 / 更新依赖（`pnpm install`）
-4. 重新构建（`pnpm build`）
-5. 重新同步 crew 配置（`setup-crew.sh`）
-6. 重新应用 addons（`apply-addons.sh`）
+`upgrade.sh` 会依次：
+1. 拉取最新 OFB 代码（`git reset --hard origin/main`）
+2. 读取 `openclaw.version`，按锚定 commit 检出 openclaw 引擎
+   - 若已是目标 commit，跳过 install/build
+3. 安装 / 更新依赖（`pnpm install`）并重新构建（`pnpm build`）
+4. 重新应用 addons + 同步 crew 配置（`apply-addons.sh` 内含 `setup-crew.sh`）
+
+> **注意**：`update-upstream.sh` 已废弃，调用会自动重定向至 `upgrade.sh`。
 
 升级完成后通常需要重启服务。
 

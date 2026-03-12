@@ -39,9 +39,12 @@
 4. 如果空闲 → 告知用户升级步骤，等待 L3 确认
 5. 用户确认后执行：
    cd <OFB项目目录>
-   ./scripts/update-upstream.sh
+   ./scripts/upgrade.sh
 6. 观察升级过程输出，如有报错立即处理
-7. 升级完成后重启服务（reinstall-daemon.sh 或 dev.sh）
+7. 升级完成后按输出提示重启服务：
+   - openclaw 引擎有更新 → 需执行 reinstall-daemon.sh（重新生成 systemd service unit）
+   - 仅 OFB 配置更新 → 直接重启服务即可（systemctl --user restart openclaw-gateway.service）
+   - 开发模式下两种情况都用 dev.sh gateway
 8. 验证系统运行正常
 9. 向用户汇报升级结果
 ```
@@ -59,8 +62,8 @@
 
 定期或在升级/重启前运行：
 ```bash
-# 检查 openclaw 进程
-ps aux | grep openclaw
+# 检查 openclaw 进程是否存活（注意：grep 的是 openclaw.mjs，不是 openclaw 命令）
+ps aux | grep openclaw.mjs | grep -v grep
 
 # 查看最近日志（如果使用 pm2 管理）
 pm2 logs openclaw --lines 50
