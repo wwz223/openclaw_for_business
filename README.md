@@ -62,7 +62,8 @@ openclaw_for_business/
 │   ├── dev.sh             # 开发模式启动（自动安装 crew 系统 + addon）
 │   ├── setup-crew.sh      # 多 crew 系统安装（幂等）
 │   ├── apply-addons.sh    # 全局 skills + addon 加载器
-│   ├── update-upstream.sh # 更新上游代码
+│   ├── upgrade.sh         # 升级 OFB + openclaw 引擎（推荐入口）
+│   ├── update-upstream.sh # [已废弃] 等价于 upgrade.sh
 │   ├── reinstall-daemon.sh # 生产模式安装后台服务
 │   ├── generate-patch.sh  # 生成补丁（给 addon 开发者用）
 │   └── setup-wsl2.sh      # WSL2 环境配置
@@ -218,7 +219,7 @@ cd openclaw && pnpm build && cd ..
 ./scripts/dev.sh gateway              # 开发模式启动
 ./scripts/dev.sh gateway --port 18789 # 指定端口
 ./scripts/dev.sh cli config           # CLI 操作
-./scripts/update-upstream.sh          # 更新上游 + 重新应用 addon
+./scripts/upgrade.sh                  # 升级 OFB + openclaw 引擎
 ./scripts/reinstall-daemon.sh         # 生产部署
 
 # Agent 管理
