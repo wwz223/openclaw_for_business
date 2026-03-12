@@ -242,21 +242,34 @@ echo "  ✅ Template library synced to $TEMPLATE_DEST"
 if [ -f "$CONFIG_PATH" ]; then
   echo "  📝 Merging agent config into openclaw.json..."
 
-  # 规范化所有 agent workspace 路径：将 ~ 开头的路径转为绝对路径
-  # 修复已存在的 ~ 路径，避免 macOS app 环境中 HOME 展开异常导致 mkdir '/Users' 报错
+  # 规范化所有 agent workspace 路径：
+  # 1. 将 ~ 开头的路径转为绝对路径（避免 macOS app 环境 HOME 展开异常）
+  # 2. 将其他机器的绝对路径替换为当前机器路径（跨机器迁移时 /Users/... 残留）
   OPENCLAW_HOME="$OPENCLAW_HOME" node -e "
     const fs = require('fs');
     const c = JSON.parse(fs.readFileSync('$CONFIG_PATH', 'utf8'));
     const openclawHome = process.env.OPENCLAW_HOME || (process.env.HOME + '/.openclaw');
+    const currentHome = process.env.HOME || '';
     let changed = false;
     for (const agent of (c.agents?.list || [])) {
-      if (typeof agent.workspace === 'string' && agent.workspace.startsWith('~/')) {
-        agent.workspace = openclawHome + agent.workspace.slice('~/.openclaw'.length);
+      if (typeof agent.workspace !== 'string') continue;
+      const ws = agent.workspace.trim();
+      if (ws.startsWith('~/')) {
+        // ~ 开头：转为绝对路径
+        agent.workspace = openclawHome + ws.slice('~/.openclaw'.length);
         changed = true;
+      } else if (ws.startsWith('/') && currentHome && !ws.startsWith(currentHome + '/') && ws !== currentHome) {
+        // 绝对路径但不在当前 HOME 下（跨机器迁移残留，如 /Users/alice/.openclaw/workspace-main）
+        // 仅替换标准 .openclaw/workspace-* 路径，自定义路径保持不变
+        const m = ws.match(/\/\.openclaw\/(workspace-[^/]+)\$/);
+        if (m) {
+          agent.workspace = openclawHome + '/' + m[1];
+          changed = true;
+        }
       }
     }
     if (changed) fs.writeFileSync('$CONFIG_PATH', JSON.stringify(c, null, 2) + '\n');
-  " && echo "  ✅ Agent workspace paths normalized (~ → absolute)"
+  " && echo "  ✅ Agent workspace paths normalized (~ and cross-machine paths fixed)"
 
   MAIN_OVERRIDE="$(resolve_denied_override_for_agent "main")"
   HRBP_OVERRIDE="$(resolve_denied_override_for_agent "hrbp")"

@@ -151,9 +151,11 @@ if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/openclaw.plugin.json" ]; then
       if (!config.plugins.load) config.plugins.load = {};
       if (!Array.isArray(config.plugins.load.paths)) config.plugins.load.paths = [];
       const awadaPath = '$AWADA_EXT';
-      if (!config.plugins.load.paths.includes(awadaPath)) {
-        config.plugins.load.paths.push(awadaPath);
-      }
+      // 先移除所有结尾匹配 awada/awada-extension 的旧路径（跨机器迁移时清理残留）
+      config.plugins.load.paths = config.plugins.load.paths.filter(
+        p => !p.endsWith('awada/awada-extension')
+      );
+      config.plugins.load.paths.push(awadaPath);
       if (!config.plugins.entries) config.plugins.entries = {};
       if (!config.plugins.entries.awada) {
         config.plugins.entries.awada = { enabled: false };
