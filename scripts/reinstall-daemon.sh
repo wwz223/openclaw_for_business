@@ -278,6 +278,21 @@ if [ ! -f "$OPENCLAW_CONFIG_PATH_DEFAULT" ]; then
   fi
 fi
 
+# WSL2 环境：注入 noSandbox = true（Chrome 在 WSL2 中需要此选项）
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const c = JSON.parse(fs.readFileSync(p, "utf8"));
+    if (!c.browser) c.browser = {};
+    if (!c.browser.noSandbox) {
+      c.browser.noSandbox = true;
+      fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
+      console.log("  WSL2 detected: browser.noSandbox = true");
+    }
+  ' "$OPENCLAW_CONFIG_PATH_DEFAULT"
+fi
+
 # 安装多 Agent 系统（幂等）
 "$PROJECT_ROOT/scripts/setup-crew.sh"
 
