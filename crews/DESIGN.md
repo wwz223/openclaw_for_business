@@ -165,6 +165,35 @@ crews/
 - `it-engineer` 模板默认不屏蔽上述三项
 - 若实例需要例外，可直接调整实例 workspace 内的 `DENIED_SKILLS`
 
+### 4.3 命令分级体系（Command Tier System）
+
+每个模板在其 `SOUL.md` 的 `## 权限级别` 章节中声明命令层级：
+
+```markdown
+## 权限级别
+command-tier: T2
+```
+
+**四个层级定义**（详见 `crews/shared/COMMAND_TIERS.md`）：
+
+| Tier | 名称 | 执行策略 | 适用 Crew |
+|------|------|----------|-----------|
+| T0 | read-only | `security: deny` — 禁止所有 shell 命令 | customer-service, content-writer, market-analyst |
+| T1 | basic-shell | `security: allowlist` — 只读命令白名单 | main, operations |
+| T2 | dev-tools | `security: allowlist` — 开发工具链白名单 | developer, hrbp |
+| T3 | admin | `security: full` — 完整系统操作 | it-engineer |
+
+**执行机制**：`setup-crew.sh` 自动将 tier 映射到 OpenClaw 原生两层权限配置：
+1. `openclaw.json` → `agents.list[].tools.exec`：per-agent 的 security/ask 策略
+2. `~/.openclaw/exec-approvals.json`：per-agent 的命令白名单（T1/T2 白名单中的命令名通过 `command -v` 解析为二进制路径）
+
+两层取更严格者生效。所有 tier 的 `ask` 均设为 `off`（飞书等渠道无实时审批 UI）。
+
+**精细调整**：如需在 Tier 基础上追加或屏蔽命令，在模板目录创建 `ALLOWED_COMMANDS` 文件：
+- `+<command>` — 在本 Tier 基础上追加允许
+- `-<command>` — 在本 Tier 基础上屏蔽
+
+
 ### 4.2 index.md 格式
 
 `crews/index.md` 是模板注册表，由 HRBP 维护：

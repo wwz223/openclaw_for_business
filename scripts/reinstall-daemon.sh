@@ -267,6 +267,32 @@ EOF
 echo "🔧 Reinstalling Gateway Daemon..."
 echo "   Data: ~/.openclaw"
 
+# 如果配置文件不存在，从模板创建（与 dev.sh 保持一致）
+if [ ! -f "$OPENCLAW_CONFIG_PATH_DEFAULT" ]; then
+  mkdir -p "$(dirname "$OPENCLAW_CONFIG_PATH_DEFAULT")"
+  echo "📝 Creating default config from template..."
+  if [ -f "$PROJECT_ROOT/config-templates/openclaw.json" ]; then
+    cp "$PROJECT_ROOT/config-templates/openclaw.json" "$OPENCLAW_CONFIG_PATH_DEFAULT"
+  else
+    echo "{}" > "$OPENCLAW_CONFIG_PATH_DEFAULT"
+  fi
+fi
+
+# WSL2 环境：注入 noSandbox = true（Chrome 在 WSL2 中需要此选项）
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const c = JSON.parse(fs.readFileSync(p, "utf8"));
+    if (!c.browser) c.browser = {};
+    if (!c.browser.noSandbox) {
+      c.browser.noSandbox = true;
+      fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
+      console.log("  WSL2 detected: browser.noSandbox = true");
+    }
+  ' "$OPENCLAW_CONFIG_PATH_DEFAULT"
+fi
+
 # 安装多 Agent 系统（幂等）
 "$PROJECT_ROOT/scripts/setup-crew.sh"
 
@@ -274,7 +300,42 @@ echo "   Data: ~/.openclaw"
 "$PROJECT_ROOT/scripts/apply-addons.sh"
 
 if [ "$(uname -s)" = "Linux" ]; then
-  prepare_systemd_env_file "$OPENCLAW_CONFIG_PATH_DEFAULT" "$SYSTEMD_ENV_FILE"
+  # config fallback：running config 不存在时从 config-templates 扫描 env refs
+  _env_scan_config="$OPENCLAW_CONFIG_PATH_DEFAULT"
+  if [ ! -f "$_env_scan_config" ] && [ -f "$PROJECT_ROOT/config-templates/openclaw.json" ]; then
+    _env_scan_config="$PROJECT_ROOT/config-templates/openclaw.json"
+    echo "  ℹ️  Running config not found; scanning config-templates/openclaw.json for env vars..."
+  fi
+  prepare_systemd_env_file "$_env_scan_config" "$SYSTEMD_ENV_FILE"
+
+  # 将 node 路径注入 daemon.env，解决 systemd 最小 PATH 不含 node 的问题
+  _node_bin="$(command -v node 2>/dev/null || true)"
+  if [ -n "$_node_bin" ]; then
+    _node_dir="$(dirname "$_node_bin")"
+    mkdir -p "$(dirname "$SYSTEMD_ENV_FILE")"
+    # 幂等：移除旧 PATH 行后重写（防止重复运行产生重复行）
+    {
+      [ -f "$SYSTEMD_ENV_FILE" ] && grep -v "^PATH=" "$SYSTEMD_ENV_FILE" || true
+      printf 'PATH=%s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' "$_node_dir"
+    } > "${SYSTEMD_ENV_FILE}.new"
+    mv "${SYSTEMD_ENV_FILE}.new" "$SYSTEMD_ENV_FILE"
+    chmod 600 "$SYSTEMD_ENV_FILE"
+    echo "  ✅ Node.js path written to daemon.env: $_node_dir"
+  fi
+
+  # WSL2 环境：幂等注入 GUI 显示相关环境变量（WSLg 需要）
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    mkdir -p "$(dirname "$SYSTEMD_ENV_FILE")"
+    {
+      [ -f "$SYSTEMD_ENV_FILE" ] && grep -vE "^(DISPLAY|WAYLAND_DISPLAY|XDG_RUNTIME_DIR)=" "$SYSTEMD_ENV_FILE" || true
+      printf 'DISPLAY=:0\n'
+      printf 'WAYLAND_DISPLAY=wayland-0\n'
+      printf 'XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir\n'
+    } > "${SYSTEMD_ENV_FILE}.new"
+    mv "${SYSTEMD_ENV_FILE}.new" "$SYSTEMD_ENV_FILE"
+    chmod 600 "$SYSTEMD_ENV_FILE"
+    echo "  ✅ WSL2 display env written to daemon.env (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR)"
+  fi
 fi
 
 cd "$PROJECT_ROOT/openclaw"

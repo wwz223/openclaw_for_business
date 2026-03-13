@@ -33,5 +33,5 @@ Present concise takeaways:
 
 ## Notes
 - This skill is read-only (L1) — no system modifications
-- Data source: `~/.openclaw/openclaw.json` + workspace path checks
-- If config is missing, guide user to run `./scripts/dev.sh gateway` once
+- Data source: `~/.openclaw/TEAM_DIRECTORY.md`（由 `setup-crew.sh` 自动维护）
+- If team directory is missing, guide user to run `./scripts/setup-crew.sh` once

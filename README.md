@@ -208,6 +208,12 @@ cd openclaw && pnpm build && cd ..
 ./scripts/upgrade.sh
 ```
 
+> **从自己的 fork 同步**（而非官方仓库）：如果你 fork 了本项目并做了定制，希望 `upgrade.sh` 从自己的 fork 拉取，只需确保 `origin` 指向你的 fork，运行时在提示处输入 `y` 即可：
+> ```bash
+> git remote set-url origin https://github.com/YOUR_ORG/openclaw_for_business.git
+> ./scripts/upgrade.sh   # 提示 "Remote is not the official OFB repo" 时输入 y
+> ```
+
 ## 常用命令
 
 ```bash
