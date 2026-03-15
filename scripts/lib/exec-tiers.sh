@@ -34,23 +34,8 @@ resolve_command_tier() {
 }
 
 # ── 从 SOUL.md 解析 crew-type（internal/external）──────
-resolve_crew_type() {
-  local soul_file="$1"
-  if [ ! -f "$soul_file" ]; then
-    echo "external"
-    return
-  fi
-  local crew_type
-  crew_type="$(grep -i 'crew-type:' "$soul_file" 2>/dev/null \
-    | head -1 \
-    | sed 's/.*crew-type:[[:space:]]*//' \
-    | tr -d '[:space:]' \
-    | tr '[:upper:]' '[:lower:]')"
-  case "$crew_type" in
-    internal|external) echo "$crew_type" ;;
-    *) echo "external" ;;
-  esac
-}
+# 注意：resolve_crew_type 由 agent-skills.sh 提供（唯一权威实现）
+# setup-crew.sh 先 source agent-skills.sh 再 source 本文件，无需重复定义。
 
 # ── 从 ALLOWED_COMMANDS 解析 +/- 微调 ────────────────
 # 输出格式: "added1 added2|removed1 removed2"

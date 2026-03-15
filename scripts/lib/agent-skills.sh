@@ -34,6 +34,7 @@ split_skill_tokens() {
 
 # 从 SOUL.md 读取 crew-type 声明
 # 返回: "internal" 或 "external"（未声明时默认 "external"，更安全）
+# 此函数是 crew-type 解析的唯一权威实现，exec-tiers.sh 和 setup-crew.sh 均引用此处。
 resolve_crew_type() {
   local soul_file="$1"
 
@@ -43,7 +44,10 @@ resolve_crew_type() {
   fi
 
   local crew_type
-  crew_type="$(grep -m1 '^crew-type:' "$soul_file" 2>/dev/null | sed 's/^crew-type:[[:space:]]*//' | tr -d '[:space:]')"
+  crew_type="$(grep -im1 '^crew-type:' "$soul_file" 2>/dev/null \
+    | sed 's/^[Cc]rew-[Tt]ype:[[:space:]]*//' \
+    | tr -d '[:space:]' \
+    | tr '[:upper:]' '[:lower:]')"
 
   case "$crew_type" in
     internal) printf 'internal' ;;

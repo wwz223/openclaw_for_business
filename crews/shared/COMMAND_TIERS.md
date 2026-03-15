@@ -21,7 +21,7 @@
 |------|------|----------|-----------|
 | T0 | read-only | `security: deny` — 默认禁止所有 shell 命令 | external crews（默认） |
 | T1 | basic-shell | `security: allowlist` — 仅允许只读命令 | low-risk internal crews |
-| T2 | dev-tools | `security: allowlist` — 开发工具链 + 只读命令 | developer, main |
+| T2 | dev-tools | `security: allowlist` — 开发工具�� + 只读命令 | main |
 | T3 | admin | `security: full` — 完整系统操作 | it-engineer, hrbp |
 
 ---

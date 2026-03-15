@@ -102,24 +102,11 @@ resolve_builtin_file_for_agent() {
   printf '%s\n' "$workspace_file"
 }
 
-resolve_crew_type_from_soul() {
-  local soul_file="$1"
-  if [ ! -f "$soul_file" ]; then
-    printf 'external\n'
-    return
-  fi
-
-  local crew_type
-  crew_type="$(grep -m1 '^crew-type:' "$soul_file" 2>/dev/null | sed 's/^crew-type:[[:space:]]*//' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-  case "$crew_type" in
-    internal|external) printf '%s\n' "$crew_type" ;;
-    *) printf 'external\n' ;;
-  esac
-}
+# resolve_crew_type 由 agent-skills.sh 提供（唯一权威实现）
 
 resolve_template_crew_type() {
   local template_dir="$1"
-  resolve_crew_type_from_soul "$template_dir/SOUL.md"
+  resolve_crew_type "$template_dir/SOUL.md"
 }
 
 sync_agent_skill_filter() {

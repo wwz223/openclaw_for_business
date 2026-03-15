@@ -103,7 +103,7 @@
         "tools": {
           "exec": {
             "host": "gateway",
-            "security": "full",
+            "security": "allowlist",
             "ask": "off"
           }
         }
@@ -129,7 +129,7 @@
         "tools": {
           "exec": {
             "host": "gateway",
-            "security": "allowlist",
+            "security": "full",
             "ask": "off"
           }
         }
