@@ -179,6 +179,23 @@
             "ask": "off"
           }
         }
+      },
+      {
+        "id": "customer-service",
+        "name": "客服助手",
+        "workspace": "~/.openclaw/workspace-customer-service",
+        "skills": [
+          "nano-pdf",
+          "xurl",
+          "mcporter"
+        ],
+        "tools": {
+          "exec": {
+            "host": "gateway",
+            "security": "allowlist",
+            "ask": "off"
+          }
+        }
       }
     ]
   },
@@ -205,6 +222,14 @@
       "match": {
         "channel": "feishu",
         "accountId": "it-engineer-bot"
+      }
+    },
+    {
+      "agentId": "customer-service",
+      "comment": "customer-service-bot -> 客服助手",
+      "match": {
+        "channel": "feishu",
+        "accountId": "customer-service-bot"
       }
     }
   ],
@@ -266,6 +291,14 @@
         },
         "it-engineer-bot": {
           "name": "IT Engineer Bot",
+          "appId": "",
+          "appSecret": "",
+          "dmPolicy": "open",
+          "allowFrom": ["*"],
+          "groupPolicy": "allowlist"
+        },
+        "customer-service-bot": {
+          "name": "客服助手",
           "appId": "",
           "appSecret": "",
           "dmPolicy": "open",
@@ -391,7 +424,7 @@
         "enabled": false
       },
       "mcporter": {
-        "enabled": false
+        "enabled": true
       },
       "oracle": {
         "enabled": false
