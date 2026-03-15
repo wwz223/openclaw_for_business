@@ -245,12 +245,39 @@ for addon_dir in "$ADDONS_DIR"/*/; do
     echo "  🤖 Installing crew templates..."
     for template_ws in "$addon_dir"/crew/*/; do
       [ -d "$template_ws" ] || continue
-      # 需要至少有 SOUL.md 才算有效的模板
+      # 需要至少有 SOUL.md 才算��效的模板
       [ -f "${template_ws}SOUL.md" ] || continue
 
       template_id="$(basename "$template_ws")"
 
-      # 安装模板到 crews/（代码仓中，供 HRBP 使用）
+      # 读取 addon.json 中的 crew-type 声明
+      # addon.json 中可声明 "crew-type": "internal" 或 "crew-type": "external"（默认 external）
+      addon_crew_type="$(node -e "
+        try {
+          const a = JSON.parse(require('fs').readFileSync('${addon_dir}addon.json','utf8'));
+          // 支持全局 crew-type 或每模板 crew-type（crew-types[template-id]）
+          const perTemplate = a['crew-types'] && a['crew-types']['${template_id}'];
+          const global = a['crew-type'];
+          const t = perTemplate || global || 'external';
+          console.log(['internal','external'].includes(t) ? t : 'external');
+        } catch(e) { console.log('external'); }
+      " 2>/dev/null || echo "external")"
+
+      # 从 SOUL.md 中验证 crew-type 一致性（SOUL.md 中的声明优先）
+      soul_crew_type="$(grep -m1 '^crew-type:' "${template_ws}SOUL.md" 2>/dev/null \
+        | sed 's/^crew-type:[[:space:]]*//' | tr -d '[:space:]')"
+      if [ -n "$soul_crew_type" ] && [ "$soul_crew_type" != "$addon_crew_type" ]; then
+        echo "    ⚠️  crew-type mismatch for $template_id: addon.json says '$addon_crew_type', SOUL.md says '$soul_crew_type'. Using SOUL.md value."
+        addon_crew_type="$soul_crew_type"
+      fi
+      if [ "$addon_crew_type" != "internal" ] && [ "$addon_crew_type" != "external" ]; then
+        echo "    ⚠️  Unknown crew-type '$addon_crew_type' for $template_id, defaulting to 'external'"
+        addon_crew_type="external"
+      fi
+
+      echo "    → $template_id (crew-type: $addon_crew_type)"
+
+      # 安装模板到 crews/（代码仓中，供 HRBP/Main Agent 使用）
       template_dest="$CREWS_DIR/$template_id"
       if [ -d "$template_dest" ]; then
         echo "    ⚠️  template $template_id already exists in crews/, skipping"
@@ -259,12 +286,24 @@ for addon_dir in "$ADDONS_DIR"/*/; do
         echo "    ✅ template $template_id installed to crews/"
       fi
 
-      # 同步到 hrbp-templates/（运行时副本）
-      hrbp_template_dest="$OPENCLAW_HOME/hrbp-templates/$template_id"
-      rm -rf "$hrbp_template_dest"
-      cp -r "$template_ws" "$hrbp_template_dest"
+      # 同步到运行时模板目录（按 crew-type 分路由）
+      if [ "$addon_crew_type" = "internal" ]; then
+        # 对内 Crew → crew_templates/（Main Agent 访问）
+        mkdir -p "$OPENCLAW_HOME/crew_templates"
+        runtime_template_dir="$OPENCLAW_HOME/crew_templates/$template_id"
+        rm -rf "$runtime_template_dir"
+        cp -r "$template_ws" "$runtime_template_dir"
+        echo "    ✅ synced to crew_templates/ (internal)"
+      else
+        # 对外 Crew → hrbp_templates/（HRBP 访问）
+        mkdir -p "$OPENCLAW_HOME/hrbp_templates"
+        runtime_template_dir="$OPENCLAW_HOME/hrbp_templates/$template_id"
+        rm -rf "$runtime_template_dir"
+        cp -r "$template_ws" "$runtime_template_dir"
+        echo "    ✅ synced to hrbp_templates/ (external)"
+      fi
 
-      # 可选自动实例化（addon.json 中 auto-activate: true���
+      # 可选自动实例化（addon.json 中 auto-activate: true）
       auto_activate="$(node -e "
         const a = JSON.parse(require('fs').readFileSync('$addon_dir/addon.json','utf8'));
         console.log(a['auto-activate'] === true ? 'true' : 'false');
@@ -281,6 +320,13 @@ for addon_dir in "$ADDONS_DIR"/*/; do
           cp "${template_ws}"*.md "$dest/"
           if [ -f "${template_ws}DENIED_SKILLS" ]; then
             cp "${template_ws}DENIED_SKILLS" "$dest/"
+          fi
+          # 对外 Crew：复制 DECLARED_SKILLS 和创建 feedback/ 目录
+          if [ "$addon_crew_type" = "external" ]; then
+            if [ -f "${template_ws}DECLARED_SKILLS" ]; then
+              cp "${template_ws}DECLARED_SKILLS" "$dest/"
+            fi
+            mkdir -p "$dest/feedback"
           fi
           # 复制共享协议
           if [ -d "$CREWS_DIR/shared" ]; then
@@ -302,17 +348,17 @@ for addon_dir in "$ADDONS_DIR"/*/; do
                 echo "    ❌ HRBP add-agent script not found: $HRBP_ADD_AGENT_SCRIPT"
                 exit 1
               fi
-              "$HRBP_ADD_AGENT_SCRIPT" "$agent_id"
-              echo "    ✅ agent $agent_id registered"
+              # 根据 crew-type 传入对应参数
+              "$HRBP_ADD_AGENT_SCRIPT" "$agent_id" --crew-type "$addon_crew_type"
+              echo "    ✅ agent $agent_id registered (crew-type: $addon_crew_type)"
             fi
           fi
         fi
       else
-        echo "    📋 template $template_id ready (use HRBP to instantiate)"
+        echo "    📋 template $template_id ready (use HRBP/Main Agent to instantiate)"
       fi
     done
   fi
-
   echo "  ✅ $addon_name loaded"
 done
 

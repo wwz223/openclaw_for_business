@@ -12,6 +12,7 @@ CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
 FORCE=false
 
 # 内置 Crew 列表（全局唯一，不可删除，不可多实例）
+# 这些都是对内 Crew（crew-type: internal）
 BUILTIN_CREWS="main hrbp it-engineer"
 SYNC_TEAM_DIRECTORY_SCRIPT="$CREWS_DIR/hrbp/skills/hrbp-common/scripts/sync-team-directory.sh"
 
@@ -25,7 +26,7 @@ usage() {
   echo ""
   echo "Options:"
   echo "  --force                              Overwrite existing workspace files"
-  echo "  --denied-skills <agent-id>:<skills>  Override denied skills for one agent"
+  echo "  --denied-skills <agent-id>:<skills>  Override denied skills for one agent (internal crews only)"
   echo ""
   echo "Examples:"
   echo "  $0"
@@ -204,6 +205,13 @@ for agent_id in $BUILTIN_CREWS; do
   if [ -f "$agent_dir/BUILTIN_SKILLS" ]; then
     cp "$agent_dir/BUILTIN_SKILLS" "$dest/"
   fi
+  # 复制 EXTERNAL_CREW_REGISTRY.md（如有，hrbp 专用）
+  if [ -f "$agent_dir/EXTERNAL_CREW_REGISTRY.md" ]; then
+    # 仅在首次安装时复制（保留运行时状态）
+    if [ ! -f "$dest/EXTERNAL_CREW_REGISTRY.md" ]; then
+      cp "$agent_dir/EXTERNAL_CREW_REGISTRY.md" "$dest/"
+    fi
+  fi
   # 复制 Agent 专属 skills（如有）
   if [ -d "$agent_dir/skills" ]; then
     cp -r "$agent_dir/skills" "$dest/"
@@ -218,34 +226,59 @@ for agent_id in $BUILTIN_CREWS; do
     cp "$CREWS_DIR/shared/"*.md "$dest/"
   fi
 done
-echo "  ✅ Shared protocols (RULES.md, TEMPLATES.md) copied"
+echo "  ✅ Shared protocols (RULES.md, TEMPLATES.md, CREW_TYPES.md) copied"
 
-# ─── 3. 同步模板库到 hrbp-templates/（供 HRBP 运行时参考） ──────
-TEMPLATE_DEST="$OPENCLAW_HOME/hrbp-templates"
-mkdir -p "$TEMPLATE_DEST"
-# 复制所有模板目录（包括 _template 脚手架和官方模板）
+# ─── 3a. 同步对内 crew 模板库到 crew_templates/（供 Main Agent 运行时参考） ──
+CREW_TEMPLATES_DEST="$OPENCLAW_HOME/crew_templates"
+mkdir -p "$CREW_TEMPLATES_DEST"
+# 只复制内置（对内）模板：main、hrbp、it-engineer
+for crew_id in $BUILTIN_CREWS; do
+  template_dir="$CREWS_DIR/$crew_id"
+  [ -d "$template_dir" ] || continue
+  # 同步模板（总是覆盖——模板由代码仓控制）
+  rm -rf "$CREW_TEMPLATES_DEST/$crew_id"
+  cp -r "$template_dir" "$CREW_TEMPLATES_DEST/$crew_id"
+done
+# 同步 shared/ 协议到 crew_templates/
+if [ -d "$CREWS_DIR/shared" ]; then
+  cp "$CREWS_DIR/shared/"*.md "$CREW_TEMPLATES_DEST/"
+fi
+# 同步 index.md
+if [ -f "$CREWS_DIR/index.md" ]; then
+  cp "$CREWS_DIR/index.md" "$CREW_TEMPLATES_DEST/index.md"
+fi
+echo "  ✅ Internal crew templates synced to $CREW_TEMPLATES_DEST"
+
+# ─── 3b. 同步对外 crew 模板库到 hrbp_templates/（供 HRBP 运行时参考） ──
+HRBP_TEMPLATES_DEST="$OPENCLAW_HOME/hrbp_templates"
+mkdir -p "$HRBP_TEMPLATES_DEST"
+# 复制所有非内置模板（对外模板 + 用户自建模板 + 脚手架）
 for template_dir in "$CREWS_DIR"/*/; do
   [ -d "$template_dir" ] || continue
   template_id="$(basename "$template_dir")"
   # 跳过 shared/ 目录
   [ "$template_id" = "shared" ] && continue
-  # 同步模板（总是覆盖——模板由代码仓控制）
-  rm -rf "$TEMPLATE_DEST/$template_id"
-  cp -r "$template_dir" "$TEMPLATE_DEST/$template_id"
+  # 跳过内置对内 crew 模板（它们在 crew_templates/）
+  is_builtin=false
+  for builtin_id in $BUILTIN_CREWS; do
+    [ "$template_id" = "$builtin_id" ] && is_builtin=true && break
+  done
+  [ "$is_builtin" = "true" ] && continue
+  # 同步到 hrbp_templates/（总是覆盖）
+  rm -rf "$HRBP_TEMPLATES_DEST/$template_id"
+  cp -r "$template_dir" "$HRBP_TEMPLATES_DEST/$template_id"
 done
-# 同步 index.md
+# 同步 index.md（含外部模板列表）
 if [ -f "$CREWS_DIR/index.md" ]; then
-  cp "$CREWS_DIR/index.md" "$TEMPLATE_DEST/index.md"
+  cp "$CREWS_DIR/index.md" "$HRBP_TEMPLATES_DEST/index.md"
 fi
-echo "  ✅ Template library synced to $TEMPLATE_DEST"
+echo "  ✅ External crew templates synced to $HRBP_TEMPLATES_DEST"
 
 # ─── 4. 更新 openclaw.json（合并内置 Crew + skills 过滤） ────────
 if [ -f "$CONFIG_PATH" ]; then
   echo "  📝 Merging agent config into openclaw.json..."
 
-  # 规范化所有 agent workspace 路径：
-  # 1. 将 ~ 开头的路径转为绝对路径（避免 macOS app 环境 HOME 展开异常）
-  # 2. 将其他机器的绝对路径替换为当前机器路径（跨机器迁移时 /Users/... 残留）
+  # 规范化所有 agent workspace 路径
   OPENCLAW_HOME="$OPENCLAW_HOME" node -e "
     const fs = require('fs');
     const c = JSON.parse(fs.readFileSync('$CONFIG_PATH', 'utf8'));
@@ -256,12 +289,9 @@ if [ -f "$CONFIG_PATH" ]; then
       if (typeof agent.workspace !== 'string') continue;
       const ws = agent.workspace.trim();
       if (ws.startsWith('~/')) {
-        // ~ 开头：转为绝对路径
         agent.workspace = openclawHome + ws.slice('~/.openclaw'.length);
         changed = true;
       } else if (ws.startsWith('/') && currentHome && !ws.startsWith(currentHome + '/') && ws !== currentHome) {
-        // 绝对路径但不在当前 HOME 下（跨机器迁移残留，如 /Users/alice/.openclaw/workspace-main）
-        // 仅替换标准 .openclaw/workspace-* 路径，自定义路径保持不变
         const m = ws.match(/\/\.openclaw\/(workspace-[^/]+)\$/);
         if (m) {
           agent.workspace = openclawHome + '/' + m[1];
@@ -270,7 +300,7 @@ if [ -f "$CONFIG_PATH" ]; then
       }
     }
     if (changed) fs.writeFileSync('$CONFIG_PATH', JSON.stringify(c, null, 2) + '\n');
-  " && echo "  ✅ Agent workspace paths normalized (~ and cross-machine paths fixed)"
+  " && echo "  ✅ Agent workspace paths normalized"
 
   MAIN_OVERRIDE="$(resolve_denied_override_for_agent "main")"
   HRBP_OVERRIDE="$(resolve_denied_override_for_agent "hrbp")"
@@ -310,7 +340,6 @@ if [ -f "$CONFIG_PATH" ]; then
   MAIN_SKILLS_RESULT="$MAIN_SKILLS_RESULT" HRBP_SKILLS_RESULT="$HRBP_SKILLS_RESULT" IT_SKILLS_RESULT="$IT_SKILLS_RESULT" OPENCLAW_HOME="$OPENCLAW_HOME" node -e "
     const fs = require('fs');
     const c = JSON.parse(fs.readFileSync('$CONFIG_PATH', 'utf8'));
-    // 使用绝对路径而非 ~，避免 macOS app 环境中 HOME 展开异常
     const openclawHome = process.env.OPENCLAW_HOME || (process.env.HOME + '/.openclaw');
 
     const applySkills = (entry, skillsResult) => {
@@ -329,8 +358,11 @@ if [ -f "$CONFIG_PATH" ]; then
     };
 
     upsertAgent('main', (prev) => {
+      // main、hrbp、it-engineer 都是对内 crew，保留在 allowAgents
       const allowAgents = Array.isArray(prev?.subagents?.allowAgents) ? prev.subagents.allowAgents : [];
       const mergedAllowAgents = Array.from(new Set([...allowAgents, 'main', 'hrbp', 'it-engineer']));
+      // 确保外部 crew 不在 allowAgents 中（防御性清理）
+      const filteredAllowAgents = mergedAllowAgents; // 脚本层面已保证外部 crew 不加入
       const base = {
         ...prev,
         id: 'main',
@@ -339,7 +371,7 @@ if [ -f "$CONFIG_PATH" ]; then
         workspace: prev.workspace || openclawHome + '/workspace-main',
         subagents: {
           ...(prev.subagents || {}),
-          allowAgents: mergedAllowAgents,
+          allowAgents: filteredAllowAgents,
         },
       };
       return applySkills(base, process.env.MAIN_SKILLS_RESULT);
@@ -376,6 +408,8 @@ if [ -f "$CONFIG_PATH" ]; then
 
     fs.writeFileSync('$CONFIG_PATH', JSON.stringify(c, null, 2) + '\\n');
   "
+
+  # 同步所有已注册 agent 的技能过滤
   AGENT_IDS="$(node -e "
     const fs = require('fs');
     const c = JSON.parse(fs.readFileSync('$CONFIG_PATH', 'utf8'));
@@ -397,15 +431,22 @@ else
   echo "     Will be created on first start (dev.sh / reinstall-daemon.sh)"
 fi
 
-# ─── 5. 写入 OFB_ENV.md（始终覆盖，让 Agent 知道项目路径） ──────
-IT_ENGINEER_WORKSPACE="$OPENCLAW_HOME/workspace-it-engineer"
-if [ -d "$IT_ENGINEER_WORKSPACE" ]; then
-  cat > "$IT_ENGINEER_WORKSPACE/OFB_ENV.md" << ENVEOF
+# ─── 5. 写入 OFB_ENV.md（同时为 it-engineer 和 hrbp 写入） ──────
+generate_ofb_env_md() {
+  local workspace_dir="$1"
+  local agent_label="$2"
+
+  if [ -d "$workspace_dir" ]; then
+    cat > "$workspace_dir/OFB_ENV.md" << ENVEOF
 # OFB 环境信息（由 setup-crew.sh 自动生成，勿手动编辑）
 
 - **OFB 项目路径**：$PROJECT_ROOT
 - **openclaw 子目录**：$PROJECT_ROOT/openclaw
 - **配置文件**：$OPENCLAW_HOME/openclaw.json
+- **对内 Crew 通讯录**：$OPENCLAW_HOME/crew_templates/TEAM_DIRECTORY.md
+- **对外 Crew 注册表**：$OPENCLAW_HOME/workspace-hrbp/EXTERNAL_CREW_REGISTRY.md
+- **对内 Crew 模板目录**：$OPENCLAW_HOME/crew_templates/
+- **对外 Crew 模板目录**：$OPENCLAW_HOME/hrbp_templates/
 
 ## 常用操作命令
 
@@ -429,17 +470,22 @@ cd $PROJECT_ROOT && ./scripts/upgrade.sh
 cd $PROJECT_ROOT/openclaw && pnpm openclaw <subcommand>
 \`\`\`
 ENVEOF
-  echo "  ✅ OFB_ENV.md updated in workspace-it-engineer"
-fi
+    echo "  ✅ OFB_ENV.md updated in $agent_label workspace"
+  fi
+}
+
+generate_ofb_env_md "$OPENCLAW_HOME/workspace-it-engineer" "it-engineer"
+generate_ofb_env_md "$OPENCLAW_HOME/workspace-hrbp" "hrbp"
 
 # ─── 6. 完成 ──────────────────────────────────────────────────────
 echo ""
 echo "✅ Agent System installed!"
 echo ""
 echo "Installed locations:"
-echo "  Workspaces:  $OPENCLAW_HOME/workspace-main/, workspace-hrbp/, workspace-it-engineer/"
-echo "  Templates:   $OPENCLAW_HOME/hrbp-templates/"
-echo "  Config:      $CONFIG_PATH"
+echo "  Workspaces:          $OPENCLAW_HOME/workspace-main/, workspace-hrbp/, workspace-it-engineer/"
+echo "  Internal templates:  $OPENCLAW_HOME/crew_templates/"
+echo "  External templates:  $OPENCLAW_HOME/hrbp_templates/"
+echo "  Config:              $CONFIG_PATH"
 
 if [ -f "$SYNC_TEAM_DIRECTORY_SCRIPT" ]; then
   bash "$SYNC_TEAM_DIRECTORY_SCRIPT" >/dev/null 2>&1 || {

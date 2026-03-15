@@ -18,17 +18,35 @@ Ideas, direction, taste, key questions, final validation. System does everything
 Every A/P/S task ends with closeout (see TEMPLATES.md). Mark "值得沉淀" if insight is reusable.
 
 ## Routing
+
+### Internal Crew Routing
 - Default: Messages route through Main Agent, who dispatches via `sessions_spawn`
-- Bound channels: Agents with `bindings` entries handle channel messages directly
-- Same agent can serve both modes simultaneously
+- Internal crews with `bindings` entries can also handle channel messages directly
+- Same internal agent can serve both spawn + bind modes simultaneously
 - Force route syntax: `[Route: @<agent-id>] <message>` or `@<agent-id> <message>`
   - Example: `[Route: @it-engineer] 帮我检查 gateway 日志`
-- Crew lifecycle ownership: recruit/modify/dismiss are HRBP-only; Main can route but cannot execute lifecycle operations directly
+
+### External Crew Routing
+- **External Crews are BIND-ONLY** — they are never spawned by Main Agent
+- External Crews handle messages directly via their bound channel
+- Main Agent does not route to external crews; inform users to use the dedicated channel
+
+### Crew Lifecycle Ownership
+- **Internal Crew lifecycle**: recruit/modify/dismiss are Main Agent responsibilities
+  (Main Agent uses crew-recruit / crew-dismiss skills)
+- **External Crew lifecycle**: recruit/modify/dismiss/upgrade are HRBP-only
+  (HRBP uses hrbp-recruit / hrbp-modify / hrbp-remove / hrbp-upgrade skills)
+- Internal crews (main/hrbp/it-engineer) are protected — neither Main Agent nor HRBP can delete them
 
 ## Inter-Agent Communication
-- Spawn preferred (parallel, isolated)
+- Spawn preferred for internal crews (parallel, isolated)
 - Sub-agent results announce back to spawner
 - Requesting agent syncs results to its own channel
 
 ## Self-Iteration
-Allowed for agent-local changes. Record what changed, why, how to rollback. S-class changes need user review.
+- **Internal Crew**: can self-improve via `self-improving` skill (allowed for agent-local changes)
+  Record what changed, why, how to rollback. S-class changes need user review.
+- **External Crew**: self-improvement is PROHIBITED. Improvements are managed by HRBP.
+
+## Crew Types
+See `CREW_TYPES.md` for the authoritative definition of internal vs external crews.

@@ -1,6 +1,7 @@
 #!/bin/bash
-# modify-agent.sh - 修改 Agent 的渠道绑定
+# modify-agent.sh - 修改外部 Crew Agent 的渠道绑定
 # 用法: bash ./skills/hrbp-modify/scripts/modify-agent.sh <agent-id> [--bind <channel>:<accountId>] [--unbind <channel>]
+# 注意：此脚本仅适用于对外 Crew（crew-type: external）。内部 Crew 不由 HRBP 管理。
 set -e
 
 OPENCLAW_HOME="$HOME/.openclaw"
@@ -28,6 +29,23 @@ AGENT_ID="$1"
 shift
 
 validate_agent_id "$AGENT_ID"
+
+# 安全检查：内部 Crew 不由 HRBP modify 管理
+if [ "$AGENT_ID" = "main" ] || [ "$AGENT_ID" = "hrbp" ] || [ "$AGENT_ID" = "it-engineer" ]; then
+  echo "❌ Agent '$AGENT_ID' is an internal crew managed by Main Agent, not by HRBP."
+  echo "   Internal crew modifications require editing workspace files via setup-crew.sh or direct admin action."
+  exit 1
+fi
+
+# 验证 crew-type 为 external
+WORKSPACE_SOUL="$OPENCLAW_HOME/workspace-$AGENT_ID/SOUL.md"
+if [ -f "$WORKSPACE_SOUL" ]; then
+  CREW_TYPE="$(grep -m1 '^crew-type:' "$WORKSPACE_SOUL" 2>/dev/null | sed 's/^crew-type:[[:space:]]*//' | tr -d '[:space:]')"
+  if [ "$CREW_TYPE" = "internal" ]; then
+    echo "❌ Agent '$AGENT_ID' is an internal crew (crew-type: internal). HRBP only manages external crews."
+    exit 1
+  fi
+fi
 
 BIND_CHANNEL=""
 BIND_ACCOUNT=""
@@ -73,7 +91,7 @@ if ! AGENT_ID="$AGENT_ID" CONFIG_PATH="$CONFIG_PATH" node -e "
   exit 1
 fi
 
-echo "🔧 Modifying agent: $AGENT_ID"
+echo "🔧 Modifying external crew agent: $AGENT_ID"
 
 AGENT_ID="$AGENT_ID" CONFIG_PATH="$CONFIG_PATH" UNBIND_CHANNEL="$UNBIND_CHANNEL" BIND_CHANNEL="$BIND_CHANNEL" BIND_ACCOUNT="$BIND_ACCOUNT" node -e "
   const fs = require('fs');
@@ -114,27 +132,6 @@ AGENT_ID="$AGENT_ID" CONFIG_PATH="$CONFIG_PATH" UNBIND_CHANNEL="$UNBIND_CHANNEL"
 
   fs.writeFileSync(process.env.CONFIG_PATH, JSON.stringify(c, null, 2) + '\n');
 "
-
-# 更新 Main Agent 的 MEMORY.md
-MAIN_MEMORY="$OPENCLAW_HOME/workspace-main/MEMORY.md"
-if [ -f "$MAIN_MEMORY" ]; then
-  # 确定新的路由模式
-  HAS_BINDING=$(AGENT_ID="$AGENT_ID" CONFIG_PATH="$CONFIG_PATH" node -e "
-    const c = JSON.parse(require('fs').readFileSync(process.env.CONFIG_PATH, 'utf8'));
-    const has = (c.bindings || []).some(b => b.agentId === process.env.AGENT_ID);
-    console.log(has ? 'yes' : 'no');
-  ")
-  if [ "$HAS_BINDING" = "yes" ]; then
-    ROUTE_MODE="both"
-  else
-    ROUTE_MODE="spawn"
-  fi
-
-  # 更新花名册中的路由模式（如果 agent 存在的话）
-  if grep -q "^| $AGENT_ID " "$MAIN_MEMORY" 2>/dev/null; then
-    echo "  ✅ Updated Main Agent MEMORY.md (route mode: $ROUTE_MODE)"
-  fi
-fi
 
 if [ -f "$SYNC_TEAM_DIRECTORY_SCRIPT" ]; then
   OPENCLAW_HOME="$OPENCLAW_HOME" CONFIG_PATH="$CONFIG_PATH" bash "$SYNC_TEAM_DIRECTORY_SCRIPT" >/dev/null 2>&1 || {

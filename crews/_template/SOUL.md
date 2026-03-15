@@ -11,5 +11,9 @@
 - L2: {What can be done with structured output}
 - L3: {What requires user confirmation}
 
+## 权限级别
+crew-type: external
+command-tier: T0
+
 ## Communication Style
 {Describe tone, language, approach}
