@@ -499,3 +499,79 @@ addons/<addon-name>/
 - [ ] CLAUDE.md：同步新的项目结构和概念说明
 - [ ] docs/crew-system.md：全面重写
 - [ ] docs/addon_development.md：更新 addon crew 模板规范
+
+---
+
+## v3 Update: Internal vs External Crew Type System (2026-03)
+
+> 状态：已实施
+> 变更范围：Crew 类型分离，目录结构更新，生命周期管理权转移
+
+### 3.0 设计动机
+
+v2 的 crews 系统将所有 crew 混同管理（HRBP 统一管理所有 crew）。v3 引入了"对内 crew"和"对外 crew"的概念分离，以更好地匹配实际业务场景：
+
+- **对内 crew**：服务企业内部管理者，技术上可通过 Main Agent 路由（spawn + bind），可自主升级
+- **对外 crew**：服务外部客户，只能通过直连渠道（bind-only），权限受限，不可自主升级
+
+### 3.1 Crew 类型
+
+详见 `crews/shared/CREW_TYPES.md`（权威定义文档）。
+
+| 类型 | 代表 | 技能模式 | 路由 | 生命周期 | 升级 |
+|------|------|---------|------|---------|------|
+| internal | main/hrbp/it-engineer | inherit（继承） | spawn+bind | Main Agent | self-improve |
+| external | customer-service | declare（声明式） | bind-only | HRBP | HRBP 主导 |
+
+### 3.2 目录结构变更
+
+```
+~/.openclaw/
+├── crew_templates/       # 对内 crew 模板（Main Agent 访问）
+│   ├── TEAM_DIRECTORY.md # 对内 crew 通讯录（自动生成）
+│   ├── main/
+│   ├── hrbp/
+│   └── it-engineer/
+├── hrbp_templates/       # 对外 crew 模板（HRBP 访问）
+│   ├── index.md
+│   ├── customer-service/
+│   └── _template/
+├── workspace-hrbp/
+│   └── EXTERNAL_CREW_REGISTRY.md  # 对外 crew 实例注册表（HRBP 专属）
+...
+```
+
+### 3.3 生命周期管理权转移
+
+| 操作 | v2（HRBP 统管） | v3（职责分离） |
+|------|----------------|---------------|
+| 对内 crew recruit/dismiss | HRBP | **Main Agent**（crew-recruit/crew-dismiss 技能） |
+| 对外 crew recruit/dismiss | HRBP | HRBP（hrbp-recruit/hrbp-remove 技能）|
+| 对外 crew upgrade | — | HRBP（hrbp-feedback-review + upgrade flow）|
+| 对外 crew self-improve | HRBP 管理 | **禁止**，HRBP 主导升级 |
+
+### 3.4 Main Agent 权限升级
+
+Main Agent 从 T1 → **T2**，获得执行 crew 管理脚本的能力。
+
+新增技能：
+- `crew-list`：查看对内 crew 通讯录
+- `crew-recruit`：注册新对内 crew（调用 add-agent.sh --crew-type internal）
+- `crew-dismiss`：下线对内 crew（调用 remove-agent.sh）
+
+### 3.5 HRBP 权限升级
+
+HRBP 从 T2 → **T3**，聚焦管理对外 crew。
+
+增强：
+- 内置 OFB 系统知识（文档地址、本地路径）
+- 新增 `hrbp-feedback-review` 技能：扫描对外 crew 的用户反馈，制定升级方案
+- 维护 `EXTERNAL_CREW_REGISTRY.md`（对外 crew 实例的权威记录）
+
+### 3.6 官方模板精简
+
+仅保留 4 个官方模板：
+- **对内**：main、hrbp、it-engineer
+- **对外**：customer-service
+
+删除：developer、content-writer、market-analyst、operations（可通过 HRBP 按需自建）

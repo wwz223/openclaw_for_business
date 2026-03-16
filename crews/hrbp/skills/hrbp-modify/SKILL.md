@@ -1,14 +1,20 @@
 # HRBP Skill — Modify (调岗)
 
+## Scope
+**This skill applies to external crew instances only.**
+- Internal crews (`main`, `hrbp`, `it-engineer`) are managed by Main Agent via setup-crew.sh. Do NOT modify their workspace via this skill.
+- If the user asks to modify an internal crew, politely explain this and redirect.
+
 ## Trigger
-User requests to change/update an existing agent instance, or Main Agent spawns HRBP for modification.
+User requests to change/update an existing **external** agent instance, or Main Agent spawns HRBP for modification.
 
 ## Procedure
 
 ### Step 1: Identify Target Instance (L1)
-- Check the team roster in Main Agent's `MEMORY.md`
+- Check `EXTERNAL_CREW_REGISTRY.md` in your workspace for known external crew instances
 - Confirm which instance the user wants to modify
-- If ambiguous, list available instances and ask for clarification
+- **Verify crew type**: confirm the target is an external crew (`crew-type: external` in SOUL.md). If it's an internal crew, decline and redirect.
+- If ambiguous, list available external instances and ask for clarification
 
 ### Step 2: Understand Changes (L1)
 - Read the target instance's current workspace files (SOUL.md, AGENTS.md, TOOLS.md, etc.)
@@ -34,7 +40,8 @@ After user confirms:
 2. **Channel bindings** (L3): If binding changes are needed, run:
    - Add binding: `bash ./skills/hrbp-modify/scripts/modify-agent.sh <instance-id> --bind <channel>:<accountId>`
    - Remove binding: `bash ./skills/hrbp-modify/scripts/modify-agent.sh <instance-id> --unbind <channel>`
-3. Update Main Agent's `MEMORY.md` roster if specialty or route mode changed
+3. **DECLARED_SKILLS** (L2/L3): If skill access changes are needed, edit `~/.openclaw/workspace-<instance-id>/DECLARED_SKILLS`
+4. Update `EXTERNAL_CREW_REGISTRY.md` if specialty or route mode changed
 
 ### Step 5: Closeout
 Report to the user:
@@ -47,5 +54,7 @@ Report to the user:
 - Always read current config before proposing changes
 - All L3 operations (system config, bindings) require explicit user confirmation
 - Workspace file edits (L2) can proceed after user approves the plan
-- Protected agents (`main`, `hrbp`, `it-engineer`) can be modified but not deleted
+- **External crew only**: Protected agents (`main`, `hrbp`, `it-engineer`) are internal crews — they are NOT managed by this skill
 - Modifications affect the instance only — the source template is not changed
+- External crew SOUL.md must retain `crew-type: external` and `command-tier: T0` (or declared tier) — do not remove these
+- External crews cannot self-improve; all upgrades must go through HRBP (this skill)

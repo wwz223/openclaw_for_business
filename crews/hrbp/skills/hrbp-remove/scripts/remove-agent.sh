@@ -1,6 +1,7 @@
 #!/bin/bash
-# remove-agent.sh - 从 openclaw.json 移除 Agent（workspace 归档不删除）
+# remove-agent.sh - 从 openclaw.json 移除外部 Crew Agent（workspace 归档不删除）
 # 用法: bash ./skills/hrbp-remove/scripts/remove-agent.sh <agent-id>
+# 注意：此脚本仅适用于对外 Crew（crew-type: external）。内部 Crew 不由 HRBP 管理。
 set -e
 
 OPENCLAW_HOME="$HOME/.openclaw"
@@ -23,10 +24,21 @@ AGENT_ID="$1"
 
 validate_agent_id "$AGENT_ID"
 
-# 安全检查：保护 main、hrbp 和 it-engineer
+# 安全检查：保护内部 Crew — main、hrbp 和 it-engineer
 if [ "$AGENT_ID" = "main" ] || [ "$AGENT_ID" = "hrbp" ] || [ "$AGENT_ID" = "it-engineer" ]; then
-  echo "❌ Agent '$AGENT_ID' is protected and cannot be removed."
+  echo "❌ Agent '$AGENT_ID' is an internal crew and cannot be removed by HRBP."
+  echo "   Internal crews are managed by Main Agent via setup-crew.sh."
   exit 1
+fi
+
+# 验证 crew-type 为 external（防止误删内部 Crew）
+WORKSPACE_SOUL="$OPENCLAW_HOME/workspace-$AGENT_ID/SOUL.md"
+if [ -f "$WORKSPACE_SOUL" ]; then
+  CREW_TYPE="$(grep -m1 '^crew-type:' "$WORKSPACE_SOUL" 2>/dev/null | sed 's/^crew-type:[[:space:]]*//' | tr -d '[:space:]')"
+  if [ "$CREW_TYPE" = "internal" ]; then
+    echo "❌ Agent '$AGENT_ID' is an internal crew (crew-type: internal). HRBP only manages external crews."
+    exit 1
+  fi
 fi
 
 # 验证 openclaw.json 存在
@@ -45,7 +57,7 @@ if ! AGENT_ID="$AGENT_ID" CONFIG_PATH="$CONFIG_PATH" node -e "
   exit 1
 fi
 
-echo "🗑️  Removing agent: $AGENT_ID"
+echo "🗑️  Removing external crew agent: $AGENT_ID"
 
 # 1. 从 openclaw.json 移除
 AGENT_ID="$AGENT_ID" CONFIG_PATH="$CONFIG_PATH" node -e "
@@ -86,14 +98,14 @@ else
   echo "  ⚠️  No workspace found at $WORKSPACE"
 fi
 
-# 3. 更新 Main Agent 的 MEMORY.md
-MAIN_MEMORY="$OPENCLAW_HOME/workspace-main/MEMORY.md"
-if [ -f "$MAIN_MEMORY" ]; then
-  if grep -q "^| $AGENT_ID " "$MAIN_MEMORY" 2>/dev/null; then
-    TMP_MEMORY="$(mktemp "${MAIN_MEMORY}.tmp.XXXXXX")"
-    grep -v "^| $AGENT_ID " "$MAIN_MEMORY" > "$TMP_MEMORY"
-    mv "$TMP_MEMORY" "$MAIN_MEMORY"
-    echo "  ✅ Removed from Main Agent MEMORY.md roster"
+# 3. 更新 HRBP 的 EXTERNAL_CREW_REGISTRY.md
+HRBP_REGISTRY="$OPENCLAW_HOME/workspace-hrbp/EXTERNAL_CREW_REGISTRY.md"
+if [ -f "$HRBP_REGISTRY" ]; then
+  if grep -q "^| $AGENT_ID " "$HRBP_REGISTRY" 2>/dev/null; then
+    TMP_REGISTRY="$(mktemp "${HRBP_REGISTRY}.tmp.XXXXXX")"
+    grep -v "^| $AGENT_ID " "$HRBP_REGISTRY" > "$TMP_REGISTRY"
+    mv "$TMP_REGISTRY" "$HRBP_REGISTRY"
+    echo "  ✅ Removed from HRBP EXTERNAL_CREW_REGISTRY.md"
   fi
 fi
 

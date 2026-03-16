@@ -2,13 +2,24 @@
 # agent-skills.sh - 统一计算 Agent 的技能过滤配置
 #
 # 设计理念（OFB）：
-#   - 每个 Agent 默认都使用「全局基线技能集」（见 list_default_global_skill_names）
-#   - add-on / 项目级全局 skills 默认对所有 Agent 开放（见 list_global_shared_skill_names）
-#   - 可通过 BUILTIN_SKILLS（或显式参数）在基线之上追加 bundled skills
+#   两种技能解析模式，由 SOUL.md 中的 crew-type 决定：
+#
+#   inherit 模式（对内 Crew，crew-type: internal）：
+#   - 基线：list_default_global_skill_names 中 11 个指定的上游内置技能
+#   - 自动追加：apply-addons.sh 写入 GLOBAL_SHARED_SKILLS 的 addon/项目全局技能
+#   - 可通过 BUILTIN_SKILLS（或显式参数）在此之上追加 Agent 专属技能
+#     （如 it-engineer 的 github / gh-issues / coding-agent）
 #   - 可通过 DENIED_SKILLS（或显式参数）从最终列表中排除技能
-#   - 最终总是写入 agents.list[].skills，避免“空 skills 字段 => 全量技能泄露”
-#   - resolve_agent_skills_json 返回：
-#       JSON 数组   → Agent 最终可见 skills（bundled + workspace）
+#
+#   declare 模式（对外 Crew，crew-type: external）：
+#   - 仅使用 DECLARED_SKILLS 文件中明确声明的技能
+#   - 不继承基线技能，不继承全局共享技能
+#   - 不支持 DENIED_SKILLS（无需排除，因为只包含声明的技能）
+#   - workspace 专属技能仍然可用（追加到声明列表末尾）
+#
+#   最终总是写入 agents.list[].skills，避免"空 skills 字段 => 全量技能泄露"
+#   resolve_agent_skills_json 返回：
+#       JSON 数组   → Agent 最终可见 skills
 
 set -e
 
@@ -19,6 +30,30 @@ split_skill_tokens() {
     | tr ',' '\n' \
     | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
     | awk 'NF'
+}
+
+# 从 SOUL.md 读取 crew-type 声明
+# 返回: "internal" 或 "external"（未声明时默认 "external"，更安全）
+# 此函数是 crew-type 解析的唯一权威实现，exec-tiers.sh 和 setup-crew.sh 均引用此处。
+resolve_crew_type() {
+  local soul_file="$1"
+
+  if [ ! -f "$soul_file" ]; then
+    printf 'external'
+    return
+  fi
+
+  local crew_type
+  crew_type="$(grep -im1 '^crew-type:' "$soul_file" 2>/dev/null \
+    | sed 's/^[Cc]rew-[Tt]ype:[[:space:]]*//' \
+    | tr -d '[:space:]' \
+    | tr '[:upper:]' '[:lower:]')"
+
+  case "$crew_type" in
+    internal) printf 'internal' ;;
+    external) printf 'external' ;;
+    *) printf 'external' ;;  # 未声明或未知类型，默认 external（安全兜底）
+  esac
 }
 
 list_builtin_skill_names() {
@@ -37,6 +72,8 @@ list_builtin_skill_names() {
   done | sort
 }
 
+# OFB 指定的全局基线技能（对所有对内 Crew 统一开放的 11 个上游内置技能）
+# 变更须同步更新 config-templates/openclaw.json 的 skills.entries 确保这些技能处于 enabled 状态
 list_default_global_skill_names() {
   cat <<'EOF'
 1password
@@ -50,7 +87,6 @@ tmux
 weather
 xurl
 video-frames
-self-improving
 EOF
 }
 
@@ -70,38 +106,17 @@ list_workspace_skill_names() {
   done | sort
 }
 
-list_global_shared_skill_names() {
-  local project_root="$1"
-  local openclaw_home="$2"
-  local shared_file="$openclaw_home/GLOBAL_SHARED_SKILLS"
+# 读取对外 Crew 的声明式技能列表（DECLARED_SKILLS 文件）
+list_declared_skill_names() {
+  local declared_file="$1"
 
-  # 优先读取运行时清单（由 apply-addons.sh 维护）
-  if [ -f "$shared_file" ]; then
-    split_skill_tokens "$(cat "$shared_file")" | sort -u
+  if [ ! -f "$declared_file" ]; then
     return
   fi
 
-  # 兜底：从项目目录扫描「项目级 skills + addon 级 skills」
-  # 注意：只扫描 addons/*/skills，不扫描 addons/*/crew/*/skills
-  {
-    if [ -d "$project_root/skills" ]; then
-      for skill_dir in "$project_root"/skills/*/; do
-        [ -d "$skill_dir" ] || continue
-        if [ -f "${skill_dir}SKILL.md" ]; then
-          basename "$skill_dir"
-        fi
-      done
-    fi
-
-    if [ -d "$project_root/addons" ]; then
-      for skill_dir in "$project_root"/addons/*/skills/*/; do
-        [ -d "$skill_dir" ] || continue
-        if [ -f "${skill_dir}SKILL.md" ]; then
-          basename "$skill_dir"
-        fi
-      done
-    fi
-  } | sort -u
+  split_skill_tokens "$(cat "$declared_file")" \
+    | grep -Ev '^(self-improving|self-improve)$' \
+    | sort -u
 }
 
 # 读取额外 bundled skills（来自 BUILTIN_SKILLS 文件或命令行参数）
@@ -159,9 +174,10 @@ resolve_denied_skill_names() {
   split_skill_tokens "$raw"
 }
 
-# 计算 Agent 的技能过滤配置
-# 返回：
-#   JSON 数组   → 明确的 allowlist（默认基线 + 额外 - denied + workspace）
+# 计算 Agent 的技能过滤配置（内部使用）
+# 模式由 crew-type 决定：
+#   internal → inherit 模式（基线 + 额外 - 拒绝 + workspace）
+#   external → declare 模式（仅 DECLARED_SKILLS + workspace）
 resolve_agent_skills_json() {
   local agent_id="$1"
   local workspace_dir="$2"
@@ -172,20 +188,58 @@ resolve_agent_skills_json() {
   local project_root="$7"
   local openclaw_home="${8:-$HOME/.openclaw}"
 
+  # 读取 crew 类型
+  local soul_file="$workspace_dir/SOUL.md"
+  local crew_type
+  crew_type="$(resolve_crew_type "$soul_file")"
+
+  local workspace_skills
+  workspace_skills="$(list_workspace_skill_names "$workspace_dir")"
+
+  if [ "$crew_type" = "external" ]; then
+    # ── declare 模式（对外 Crew）──
+    # 仅使用 DECLARED_SKILLS 文件中的技能 + workspace 专属技能
+    local declared_file="$workspace_dir/DECLARED_SKILLS"
+    local declared_skills
+    declared_skills="$(list_declared_skill_names "$declared_file")"
+
+    printf '%s\n%s\n' "$declared_skills" "$workspace_skills" \
+      | grep -Ev '^(self-improving|self-improve)$' \
+      | awk 'NF && !seen[$0]++' \
+      | node -e '
+const fs = require("fs");
+const lines = fs.readFileSync(0, "utf8")
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean);
+console.log(JSON.stringify(Array.from(new Set(lines))));
+'
+    return
+  fi
+
+  # ── inherit 模式（对内 Crew）──
+  # 层次：① 11 个基线上游技能  ② addon/项目全局技能  ③ Agent 专属技能（BUILTIN_SKILLS）  ④ -DENIED  ⑤ +workspace
+
+  # ① OFB 指定的 11 个基线技能
   local default_builtins=""
   default_builtins="$(list_default_global_skill_names)"
 
+  # ② addon / 项目安装的全局技能（apply-addons.sh 写入 GLOBAL_SHARED_SKILLS 文件）
+  local addon_global_skills=""
+  local global_shared_file="$openclaw_home/GLOBAL_SHARED_SKILLS"
+  if [ -f "$global_shared_file" ]; then
+    addon_global_skills="$(awk 'NF' "$global_shared_file")"
+  fi
+
+  # ③ Agent 专属额外技能（来自 BUILTIN_SKILLS 文件或命令行参数）
   local additional_builtins=""
   additional_builtins="$(resolve_additional_builtin_skill_names \
     "$explicit_builtin_tokens" \
     "$builtin_file" \
     "$project_root")"
 
-  local global_shared_skills=""
-  global_shared_skills="$(list_global_shared_skill_names "$project_root" "$openclaw_home")"
-
   local merged_global_skills=""
-  merged_global_skills="$(printf '%s\n%s\n%s\n' "$default_builtins" "$additional_builtins" "$global_shared_skills" \
+  merged_global_skills="$(printf '%s\n%s\n%s\n' "$default_builtins" "$addon_global_skills" "$additional_builtins" \
     | awk 'NF && !seen[$0]++')"
 
   local denied_names
@@ -205,9 +259,6 @@ resolve_agent_skills_json() {
   else
     allowed_builtins="$merged_global_skills"
   fi
-
-  local workspace_skills
-  workspace_skills="$(list_workspace_skill_names "$workspace_dir")"
 
   printf '%s\n%s\n' "$allowed_builtins" "$workspace_skills" \
     | awk 'NF && !seen[$0]++' \

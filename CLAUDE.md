@@ -9,7 +9,7 @@
 
 注意：
 - 本代码仓不直接修改上游 openclaw 的源码，所有增强均需通过上述两个机制实现。
-- 本代码仓会内置多个 Crew 模板（内置三个系统级 Crew + 多个官方模板）。
+- 本代码仓会内置多个 Crew 模板（内置三个系统级**对内 Crew** + 一个官方**对外 Crew** 模板 customer-service）。
 - 本代码仓本身不包含任何 addon，仅仅提供应用 addon 的能力。未来基于这种能力，我们将打造一套开放的"addon"共享社区。
 
 ## 项目结构
@@ -20,18 +20,15 @@
 openclaw_for_business/
 ├── openclaw/              # 上游仓库（git clone，禁止直接修改）
 ├── crews/                 # Crew 模板库 + 内置 Crew
-│   ├── shared/            # 共享协议（RULES.md、TEMPLATES.md）
-│   ├── _template/         # 空白脚手架（创建新模板的起点）
-│   ├── index.md           # 模板注册表（HRBP 维护）
-│   ├── main/              # [built-in] Main Agent（路由调度器）
-│   ├── hrbp/              # [built-in] HRBP（Crew 生命周期管理）
-│   │   └── skills/        # HRBP 专属技能（recruit/modify/remove/list/usage）
-│   ├── it-engineer/       # [built-in] IT Engineer（系统运维）
-│   ├── customer-service/  # [official] 客服模板
-│   ├── developer/         # [official] 开发者模板
-│   ├── content-writer/    # [official] 内容创作模板
-│   ├── market-analyst/    # [official] 市场分析��板
-│   └── operations/        # [official] 运营管理模板
+│   ├── shared/            # 共享协议（RULES.md、TEMPLATES.md、CREW_TYPES.md）
+│   ├── _template/         # 空白脚手架（默认 external 类型）
+│   ├── index.md           # 模板注册表
+│   ├── main/              # [built-in, internal] Main Agent（路由 + 对内crew管理）
+│   │   └── skills/        # 专属技能（crew-list/crew-recruit/crew-dismiss）
+│   ├── hrbp/              # [built-in, internal] HRBP（对外 Crew 管理）
+│   │   └── skills/        # HRBP 专属技能（recruit/modify/remove/list/usage/feedback-review）
+│   ├── it-engineer/       # [built-in, internal] IT Engineer（系统运维）
+│   └── customer-service/  # [official, external] 客服模板（bind-only，声明式技能）
 ├── skills/                # 全局共享技能（所有 Agent 可见）
 ├── addons/                # 第三方 addon 安装目录（.gitignore 不跟踪子目录）
 ├── config-templates/      # 配置模板（版本控制）
@@ -58,21 +55,25 @@ openclaw_for_business/
 - 每当实际运行配置（`~/.openclaw/openclaw.json`）经过验证可正常工作后，**必须将结构和最佳实践同步回 config-templates**
 - 敏感信息（apiKey、appSecret、auth token 等）在模板中留空，但字段结构必须保留
 
-### 2. Crews 系统（Template → Instance 模型）
+### 2. Crews 系统（Template → Instance 模型 + 对内/对外类型分离）
 
 `crews/` 是项目的核心组件，存放 Crew 模板库和内置 Crew 定义：
 
 - **Template vs Instance**：模板是蓝图（存在 `crews/`），实例是运行态（workspace 在 `~/.openclaw/`）。同一模板可实例化多个独立 Crew。
-- **内置 Crew**（main / hrbp / it-engineer）：全局唯一，不可删除，不可多实例，由 `setup-crew.sh` 自动安装，不受 HRBP 管理。
-- **非内置 Crew**：所有其他 Crew 的完整生命周期由 HRBP 管理（通过模板匹配→实例化→可选 channel 绑定）。
+- **对内 Crew**（internal）：main/hrbp/it-engineer，技能继承（inherit 模式），spawn+bind 双路由，由 Main Agent 管理生命周期，可通过 self-improve 自主升级。
+- **对外 Crew**（external）：customer-service 等，技能声明式（DECLARED_SKILLS），bind-only，由 HRBP 管理，禁止 self-improve，用户不满时记录 feedback。
+- **内置 Crew**（main/hrbp/it-engineer）：全局唯一，不可删除，不可多实例，由 `setup-crew.sh` 安装。外部 Crew 由 HRBP 通过模板匹配→实例化管理。
 - 每个模板/实例 workspace 包含 8 个 .md 文件（SOUL/AGENTS/MEMORY/USER/IDENTITY/TOOLS/TASKS/HEARTBEAT）和可选 `DENIED_SKILLS`
 - **技能两级体系**（与 OpenClaw 原生机制对齐）：
   - 全局共享：`skills/`（项目根目录）→ 安装到 `openclaw/skills/`，所有 Agent 可见
   - Agent 专属：`crews/<template>/skills/` → 安装到 `~/.openclaw/workspace-<instance>/skills/`，仅该实例可见
-  - **默认开放策略**：全部已启用内置 skill 对所有 Agent 开放，无需白名单配置
-    - `agents.list[].skills` 字段默认不设置（openclaw 原生行为：所有已启用 skill 可见）
-    - 如需屏蔽特定 skill，在 workspace 中放置 `DENIED_SKILLS` 文件（每行一个 skill 名称）
-    - 有屏蔽列表时，`setup-crew.sh` 自动计算 allowlist = 全部内置 - 屏蔽列表，写入 `agents.list[].skills`
+  - **对内 Crew（internal）技能继承策略**：默认继承全部 global skills（`openclaw/skills/` 下所有已安装技能）
+    - 可通过 `DENIED_SKILLS` 文件屏蔽特��技能
+    - `setup-crew.sh` 自动计算 allowlist = 全部 global skills - 屏蔽列表，写入 `agents.list[].skills`
+  - **对外 Crew（external）技能声明策略**：仅使用 `DECLARED_SKILLS` 中明确声明的技能
+    - 可声明 global skills 和模板专属 skills
+    - 模板专属 skills 自动追加，无需在 DECLARED_SKILLS 中列出
+    - `self-improving` 对外 Crew 始终禁用
   - **精简内置 skill 集**：`config-templates/openclaw.json` 中通过 `skills.entries` 禁用平台无关 skill
     - 禁用的是个人工具类（苹果生态、智能家居、社交软件等），保留通用工具
     - `apply-addons.sh` 每次运行时将禁用列表同步到 `~/.openclaw/openclaw.json`，确保升级后一致
@@ -100,7 +101,12 @@ addon 四层加载机制（按稳定性递减）：
 1. **overrides.sh** — pnpm overrides / 依赖替换（最稳健，不依赖行号）
 2. **patches/*.patch** — git patch 精确代码改动（上游更新时可能需调整）
 3. **skills/*/SKILL.md** — 全局技能安装（默认所有 Agent 可见）
-4. **crew/<template-id>/** — Crew 模板安装到 `crews/`（默认不自动实例化，需通过 HRBP 启用；addon.json 中 `auto-activate: true` 可自动实例化）
+4. **crew/<template-id>/** — Crew 模板安装到 `crews/`（默认不自动实例化，需通过 HRBP/Main Agent 启用；addon.json 中 `auto-activate: true` 可自动实例化）
+
+addon.json 中通过 `internal_crews` 和 `external_crews` 数组声明每个模板的 crew-type（唯一权威来源）：
+- `internal_crews` 中的模板 → internal，继承全部 global skills，由 Main Agent 管理
+- `external_crews` 中的模板 → external，仅使用 DECLARED_SKILLS，由 HRBP 管理
+- 模板 SOUL.md 中的 `crew-type:` 字段不要求存在，若存在会被 addon.json 声明覆盖
 
 addon 中的技能分两级：根目录 `skills/` 为全局技能；`crew/<template>/skills/` 为模板专属技能。
 
@@ -115,7 +121,9 @@ addon 中的技能分两级：根目录 `skills/` 为全局技能；`crew/<templ
 
 Agent 系统安装后额外目录：
 - Agent workspace：`~/.openclaw/workspace-<instance-id>/`（每个实例独立 workspace）
-- 模板库：`~/.openclaw/hrbp-templates/`（供 HRBP 运行时参考，含 index.md）
+- 对内 crew 模板库：`~/.openclaw/crew_templates/`（含 TEAM_DIRECTORY.md，Main Agent 使用）
+- 对外 crew 模板库���`~/.openclaw/hrbp_templates/`（含 index.md，HRBP 使用）
+- 对外 crew 注册表：`~/.openclaw/workspace-hrbp/EXTERNAL_CREW_REGISTRY.md`（HRBP 专属）
 - 归档目录：`~/.openclaw/archived/`（已停用实例的 workspace 归档）
 
 ## 常用命令

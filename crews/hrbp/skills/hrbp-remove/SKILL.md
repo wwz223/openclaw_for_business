@@ -1,7 +1,12 @@
 # HRBP Skill — Remove (解雇 / 停用实例)
 
+## Scope
+**This skill applies to external crew instances only.**
+- Internal crews (`main`, `hrbp`, `it-engineer`) are protected system agents managed by Main Agent. Do NOT remove them via this skill.
+- If the user asks to remove an internal crew, politely decline and explain they are protected.
+
 ## Trigger
-User requests to delete/remove an existing agent instance, or Main Agent spawns HRBP for removal.
+User requests to delete/remove an existing **external** agent instance, or Main Agent spawns HRBP for removal.
 
 ## Important
 **This entire procedure is L3 — every step that modifies the system requires explicit user confirmation.**
@@ -9,12 +14,13 @@ User requests to delete/remove an existing agent instance, or Main Agent spawns 
 ## Procedure
 
 ### Step 1: Identify Target Instance (L1)
-- Check the team roster in Main Agent's `MEMORY.md`
+- Check `EXTERNAL_CREW_REGISTRY.md` in your workspace for known external crew instances
 - Confirm which instance the user wants to remove
-- If ambiguous, list available instances and ask for clarification
+- If ambiguous, list available external instances and ask for clarification
 
 ### Step 2: Safety Check (L1)
-- **Protected agents** (`main`, `hrbp`, `it-engineer`) **cannot be deleted** — inform the user and abort
+- **Protected agents** (`main`, `hrbp`, `it-engineer`) **cannot be deleted** — they are internal crews, not your domain. Inform the user and abort.
+- **Verify crew type**: check `crew-type:` in the instance's SOUL.md. If it's `internal`, decline.
 - Check if the instance has active channel bindings
 - Review the instance's current workspace and configuration
 
@@ -38,8 +44,8 @@ After user confirms:
    - Archive workspace to `~/.openclaw/archived/workspace-<instance-id>-<timestamp>/`
    - Update Main Agent's `MEMORY.md` roster
 
-### Step 5: Update HRBP Memory
-- Remove entry from Instance Registry in MEMORY.md
+### Step 5: Update HRBP Registry
+- Remove entry from `EXTERNAL_CREW_REGISTRY.md` in your workspace
 - Note in Operation History
 
 ### Step 6: Closeout
@@ -51,8 +57,8 @@ Report to the user:
 - Remind: restart Gateway to apply changes (`./scripts/dev.sh gateway`)
 
 ## Notes
-- **Never delete `main`, `hrbp`, or `it-engineer`** — these are protected system agents
-- Removing an instance does NOT delete the template — template remains available for future use
+- **External crew only**: Never remove `main`, `hrbp`, or `it-engineer` — these are internal crews not in your domain
+- Removing an instance does NOT delete the template — template remains available in `~/.openclaw/hrbp_templates/` for future use
 - Workspace is archived, not permanently deleted — user can recover it
 - All steps that modify the system require explicit user confirmation
 - If the user asks to "undo" a removal, the workspace can be restored from the archive

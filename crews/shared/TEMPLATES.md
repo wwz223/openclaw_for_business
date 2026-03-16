@@ -26,13 +26,21 @@ For P-class tasks, report progress at natural breakpoints:
 **ETA shift**: {on track / delayed — reason}
 ```
 
-## Agent Roster Entry
-
-Used in Main Agent's MEMORY.md to track team members:
+## Internal Crew Roster Entry (Main Agent MEMORY.md)
 
 ```
-| ID | Name | Specialty | Route Mode | Bound Channels | Status |
-|----|------|-----------|------------|----------------|--------|
+| ID | Name | Template | Type | Route Mode | Bound Channels | Status |
+|----|------|----------|------|------------|----------------|--------|
 ```
 
+Type values: `internal`
 Route Mode values: `spawn` / `binding` / `both`
+
+## External Crew Registry Entry (HRBP EXTERNAL_CREW_REGISTRY.md)
+
+```
+| Instance ID | Template | 类型 | 渠道绑定 | 创建日期 | 状态 | 备注 |
+|-------------|----------|------|---------|---------|------|------|
+```
+
+Type values: `external`
