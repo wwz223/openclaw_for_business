@@ -99,13 +99,20 @@ resolve_tier_commands() {
 }
 
 # ── 解析命令名 → 二进制绝对路径 ──────────────────────
+# $1: 命令名或脚本路径
+# $2: (可选) 基准目录，用于解析 ./ 相对路径（默认为 CWD）
 resolve_binary_path() {
   local cmd="$1"
+  local base_dir="${2:-}"
   # 脚本路径（./scripts/... 或绝对路径）→ 转绝对路径
   case "$cmd" in
     ./*|../*)
       local abs
-      abs="$(cd "$(dirname "$cmd")" 2>/dev/null && echo "$(pwd)/$(basename "$cmd")")"
+      if [ -n "$base_dir" ]; then
+        abs="$(cd "$base_dir" 2>/dev/null && cd "$(dirname "$cmd")" 2>/dev/null && echo "$(pwd)/$(basename "$cmd")")"
+      else
+        abs="$(cd "$(dirname "$cmd")" 2>/dev/null && echo "$(pwd)/$(basename "$cmd")")"
+      fi
       [ -n "$abs" ] && echo "$abs"
       return
       ;;
@@ -133,10 +140,12 @@ resolve_binary_path() {
 }
 
 # ── 为 agent 生成 allowlist JSON 数组 ────────────────
-# 输入: 空格分隔的命令列表
+# $1: 空格分隔的命令列表
+# $2: (可选) agent workspace 目录，用于解析 ./ 相对路��
 # 输出: JSON 数组字符串
 build_exec_allowlist_json() {
   local commands="$1"
+  local base_dir="${2:-}"
 
   if [ -z "$commands" ] || [ "$commands" = "__FULL__" ]; then
     echo "[]"
@@ -147,7 +156,7 @@ build_exec_allowlist_json() {
   local first=true
   for cmd in $commands; do
     local bin_path
-    bin_path="$(resolve_binary_path "$cmd")"
+    bin_path="$(resolve_binary_path "$cmd" "$base_dir")"
     [ -n "$bin_path" ] || continue
 
     if [ "$first" = "true" ]; then
@@ -300,9 +309,9 @@ for (const a of (c.agents?.list || [])) {
     local commands
     commands="$(resolve_tier_commands "$tier" "$allowed_cmds_file")"
 
-    # 生成 allowlist JSON
+    # 生成 allowlist JSON（./ 路径相对于 agent workspace 解析）
     local allowlist_json
-    allowlist_json="$(build_exec_allowlist_json "$commands")"
+    allowlist_json="$(build_exec_allowlist_json "$commands" "$workspace_dir")"
 
     local t0_has_allowlist="false"
     if [ "$tier" = "T0" ] && [ -n "$(printf '%s' "$commands" | tr -d '[:space:]')" ]; then
@@ -336,10 +345,14 @@ for (const a of (c.agents?.list || [])) {
     local cmd_count
     if [ "$commands" = "__FULL__" ]; then
       cmd_count="full"
-    elif [ -z "$commands" ]; then
+    elif [ -z "$allowlist_json" ] || [ "$allowlist_json" = "[]" ]; then
       cmd_count="0"
     else
-      cmd_count="$(echo $commands | wc -w | tr -d ' ')"
+      # 统计实际生成的 allowlist 条目数（已解析为绝对路径的）
+      cmd_count="$(printf '%s' "$allowlist_json" | node -e '
+        const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+        console.log(j.length);
+      ')"
     fi
 
     echo "  🔒 $agent_id [$crew_type] → $tier (security=$agent_security, commands=$cmd_count)"
