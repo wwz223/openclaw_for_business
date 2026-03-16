@@ -417,9 +417,12 @@ if [ -f "$CONFIG_PATH" ]; then
     };
 
     upsertAgent('main', (prev) => {
-      const allowAgents = Array.isArray(prev?.subagents?.allowAgents) ? prev.subagents.allowAgents : [];
-      const mergedAllowAgents = Array.from(new Set([...allowAgents, 'main', 'hrbp', 'it-engineer']));
-      const filteredAllowAgents = mergedAllowAgents.filter((id) => getCrewType(id) === 'internal');
+      // Main Agent 只能 spawn 它招募的 agent，不包含内置三员（main/hrbp/it-engineer）
+      const BUILTIN_IDS = new Set(['main', 'hrbp', 'it-engineer']);
+      const prevAllowAgents = Array.isArray(prev?.subagents?.allowAgents) ? prev.subagents.allowAgents : [];
+      const filteredAllowAgents = prevAllowAgents.filter(
+        (id) => !BUILTIN_IDS.has(id) && getCrewType(id) === 'internal'
+      );
       const base = {
         ...prev,
         id: 'main',

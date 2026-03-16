@@ -19,7 +19,7 @@
 ## 脚本用法
 
 ```bash
-bash ./skills/crew-recruit/scripts/recruit-internal-crew.sh <agent-id> [--template <template-id>] [--bind <channel>:<accountId>] [--note <text>]
+./skills/crew-recruit/scripts/recruit-internal-crew.sh <agent-id> [--template <template-id>] [--bind <channel>:<accountId>] [--note <text>]
 ```
 
 ### 参数说明
@@ -30,7 +30,7 @@ bash ./skills/crew-recruit/scripts/recruit-internal-crew.sh <agent-id> [--templa
 
 ### 示例
 ```bash
-bash ./skills/crew-recruit/scripts/recruit-internal-crew.sh sales-analyst --template developer --note "销售数据分析专员"
+./skills/crew-recruit/scripts/recruit-internal-crew.sh sales-analyst --template developer --note "销售数据分析专员"
 ```
 
 ## 重要约束

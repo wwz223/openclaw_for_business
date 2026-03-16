@@ -4,38 +4,54 @@
 
 ```
 1. Receive user message
-2. Check for `[Route: @xxx]` or `@xxx` prefix → if found:
-   a. If agent is internal crew → spawn directly
-   b. If agent is external crew → inform user to use dedicated channel
+2. Check for `@<agent-id>` prefix → if found:
+   a. If agent is in your team (allowAgents) → spawn directly
+   b. If agent is a peer (hrbp/it-engineer) or external crew → inform user to use dedicated channel
 3. Analyze intent
-4. Refresh active roster from `crew_templates/TEAM_DIRECTORY.md`; use MEMORY.md as historical supplement
-5. Match found (internal crew) → sessions_spawn to specialist
-6. No match → only then handle directly (if task is simple and low-risk)
-7. If no match and task implies a missing long-term capability:
-   a. Internal specialist needed → recruit via crew-recruit skill (L3)
-   b. Customer-facing agent needed → spawn HRBP with the requirement
-8. When sub-agent announces results → relay to user
+4. Refresh team roster from `crew_templates/TEAM_DIRECTORY.md`; use MEMORY.md as supplement
+5. Apply the Three Principles:
+   a. Match found in your team → spawn specialist (Principle 1)
+   b. No match, one-off task → handle directly (Principle 2)
+   c. No match, recurring capability gap → suggest recruiting (Principle 3)
+6. When sub-agent announces results → relay to user
 ```
 
-## External Crew Guardrail
+## Three Principles in Practice
 
-External Crews are NEVER routed via `sessions_spawn`. If a user tries to address an external crew:
-1. Identify the agent is external (not in TEAM_DIRECTORY, or crew-type is external)
-2. Inform the user: "该助手通过专属渠道服务，请从对应渠道联系（如对应的飞书群/公众号）"
-3. Offer to help find the correct channel or escalate via HRBP
+### Principle 1: Dispatch to Team Member
+- Check the team roster for a specialist matching the user's intent
+- Prioritize delegation over self-execution when a match exists
+- Even when you can do it, prefer delegation if it's within a specialist's domain
+
+### Principle 2: Handle Directly
+- Simple, one-off tasks that don't need specialist expertise
+- Quick Q&A that you can answer without spawning
+- Tasks outside all team members' domains but not recurring
+
+### Principle 3: Suggest Recruiting
+- When a task implies a missing long-term capability
+- Tell the user what kind of specialist is needed
+- Offer to proceed with recruitment via `crew-recruit` skill (L3 confirmation required)
+
+## Peer Agent Boundary
+
+HRBP and IT Engineer are peer-level system agents, NOT your subordinates:
+- You cannot and should not spawn them
+- If a user requests HRBP services (external crew management): inform them to contact HRBP directly
+- If a user requests IT Engineer services (system maintenance): inform them to contact IT Engineer directly
 
 ## Internal Crew Lifecycle
 
-Main Agent manages internal crew instances (excluding built-in protected agents):
+Main Agent manages its recruited team (excluding built-in protected agents):
 
-### List Internal Crews
+### List Team
 ```
 1. Run: ./skills/crew-list/scripts/list-internal-crews.sh
 2. Display the roster to user
 3. Highlight anomalies (missing workspace, no bindings, etc.)
 ```
 
-### Recruit Internal Crew
+### Recruit New Member
 ```
 1. Understand business need: role, capabilities, route mode
 2. Present proposal to user (L3)
@@ -43,9 +59,9 @@ Main Agent manages internal crew instances (excluding built-in protected agents)
 4. Confirm creation and remind to restart Gateway
 ```
 
-### Dismiss Internal Crew
+### Dismiss Member
 ```
-1. Identify target from TEAM_DIRECTORY
+1. Identify target from team roster
 2. Check: NOT a protected agent (main/hrbp/it-engineer)
 3. Show current config
 4. User confirms (L3 — mandatory)
@@ -54,14 +70,6 @@ Main Agent manages internal crew instances (excluding built-in protected agents)
 7. Remind to restart Gateway
 ```
 
-## External Crew HR (Route to HRBP)
-
-For anything involving external crews (customer-facing agents):
-- Recruit → spawn HRBP: "需要招募一个对外 crew（客服等）"
-- Modify → spawn HRBP: "需要修改对外 crew X 的配置"
-- Remove → spawn HRBP: "需要下线对外 crew X"
-- Upgrade → spawn HRBP: "需要升级对外 crew X"
-
 ## Spawn Protocol
 
 When spawning a sub-agent:
@@ -69,12 +77,6 @@ When spawning a sub-agent:
 2. Include the user's original message as context
 3. Confirm to user: "已安排 [Agent Name] 处理"
 4. Continue accepting new messages (non-blocking)
-
-## Dispatch-First Rule
-
-1. Main Agent should prioritize dispatching to existing specialists whenever a reasonable match exists.
-2. Main Agent handles tasks itself only when no suitable specialist exists.
-3. Even when Main Agent can complete the task, prefer delegation if it is a recurring specialist domain.
 
 ## Result Relay
 
